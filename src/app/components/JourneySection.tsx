@@ -139,11 +139,28 @@ export function JourneySection({ sectionRef }: { sectionRef: React.RefObject<HTM
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
             >
+              {/* Dusk sky from journey1.avif (lavender -> mauve -> blush),
+                  reflected every 650 units so the colour flows along the route */}
+              <defs>
+                <linearGradient
+                  id="journey-route-gradient"
+                  gradientUnits="userSpaceOnUse"
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="650"
+                  spreadMethod="reflect"
+                >
+                  <stop offset="0" stopColor="#b3a7c4" />
+                  <stop offset="0.5" stopColor="#cfb6c8" />
+                  <stop offset="1" stopColor="#e2b9a8" />
+                </linearGradient>
+              </defs>
               <path
                 ref={pathRef}
                 id="draw-path"
                 d={JOURNEY_PATH}
-                stroke="#D1C2AB"
+                stroke="url(#journey-route-gradient)"
                 strokeWidth="5"
                 strokeMiterlimit="10"
                 fill="none"

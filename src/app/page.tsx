@@ -3,6 +3,8 @@
 import Link from "next/link";
 import React, { useEffect, useRef, useState } from "react";
 import Lenis from "lenis";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { HeroMask } from "./components/HeroMask";
 import { GridSvg } from "./components/GridSvg";
 import { StarSvg } from "./components/StarSvg";
@@ -24,140 +26,101 @@ export default function MusafirExperience() {
   const journeySectionRef = useRef<HTMLDivElement>(null);
   const [navTheme, setNavTheme] = useState<"light" | "dark">("light");
 
-  // Mouse position state with smooth lerping for 2.5D Parallax
-  const mouseRef = useRef({ x: 0, y: 0, targetX: 0, targetY: 0 });
-
   useEffect(() => {
-    // 1. Initialize Lenis Smooth Scroll
+    gsap.registerPlugin(ScrollTrigger);
+
+    // 1. Lenis drives the scroll, GSAP's ticker drives Lenis. One clock for
+    //    both means ScrollTrigger (the journey route draw) updates in the same
+    //    frame the page moves, instead of trailing it by a frame.
     const lenis = new Lenis({
       lerp: 0.08,
       smoothWheel: true,
     });
+    lenis.on("scroll", ScrollTrigger.update);
+    gsap.ticker.lagSmoothing(0);
 
-    let animationFrameId: number;
+    let lastNavTheme: "light" | "dark" = "light";
 
-    // 2. Mouse Move handler for 2.5D Parallax
-    const handleMouseMove = (e: MouseEvent) => {
-      const { innerWidth, innerHeight } = window;
-      const normalizedX = (e.clientX / innerWidth) * 2 - 1;
-      const normalizedY = (e.clientY / innerHeight) * 2 - 1;
+    // 2. Per-frame effects. All layout reads happen first, then all writes, so
+    //    the browser lays the page out once per frame instead of three times.
+    const update = (time: number) => {
+      lenis.raf(time * 1000);
 
-      mouseRef.current.targetX = normalizedX;
-      mouseRef.current.targetY = normalizedY;
-    };
-
-    window.addEventListener("mousemove", handleMouseMove);
-
-    // 3. Scroll and Render loop
-    const raf = (time: number) => {
-      lenis.raf(time);
-
-      // Smooth lerp mouse coordinates
-      mouseRef.current.x += (mouseRef.current.targetX - mouseRef.current.x) * 0.05;
-      mouseRef.current.y += (mouseRef.current.targetY - mouseRef.current.y) * 0.05;
-
-      const mx = mouseRef.current.x;
-      const my = mouseRef.current.y;
-
-      // Scroll progress computation
-      const scrollY = window.scrollY || window.pageYOffset;
+      // ---- reads ----
+      const scrollY = window.scrollY;
       const viewportHeight = window.innerHeight;
+      const transitionRect = homeTransitionSectionRef.current?.getBoundingClientRect();
+      const travelRect = travelSectionRef.current?.getBoundingClientRect();
+      const journeyTop = journeySectionRef.current?.getBoundingClientRect().top;
 
-      // 1. Hero mask zoom progression (Webflow Action a-8: keyframe 0 to 33% of 200vh hero scroll = ~35vh)
-      const heroScrollRange = viewportHeight; // The 100vh scrollable distance of the 200vh hero
-      const maskProgress = Math.min(Math.max(scrollY / (heroScrollRange * 0.35), 0), 1);
-
-      // Webflow Action a-8: mask width expands from 100vw to 750vw
+      // ---- derived values ----
+      // Hero mask zoom (Webflow a-8: 0 -> 35% of the 100vh scroll range)
+      const maskProgress = Math.min(Math.max(scrollY / (viewportHeight * 0.35), 0), 1);
       const maskWidth = 100 + maskProgress * 650; // 100vw -> 750vw
       const bgScale = 1.2 - maskProgress * 0.2; // 1.2 -> 1.0
+      const heroInView = scrollY < viewportHeight * 2;
 
-      // Apply to mask inner
-      if (maskInnerRef.current) {
-        maskInnerRef.current.style.width = `${maskWidth}vw`;
-        if (maskProgress >= 0.95) {
-          maskInnerRef.current.style.opacity = "0";
-          maskInnerRef.current.style.display = "none";
-        } else if (maskProgress > 0.65) {
-          maskInnerRef.current.style.display = "flex";
-          maskInnerRef.current.style.opacity = `${1 - (maskProgress - 0.65) / 0.3}`;
-        } else {
-          maskInnerRef.current.style.display = "flex";
-          maskInnerRef.current.style.opacity = "1";
+      // ---- writes ----
+      if (heroInView) {
+        const maskInner = maskInnerRef.current;
+        if (maskInner) {
+          maskInner.style.width = `${maskWidth}vw`;
+          if (maskProgress >= 0.95) {
+            maskInner.style.opacity = "0";
+            maskInner.style.display = "none";
+          } else {
+            maskInner.style.display = "flex";
+            maskInner.style.opacity =
+              maskProgress > 0.65 ? `${1 - (maskProgress - 0.65) / 0.3}` : "1";
+          }
+        }
+
+        // The hero photo is static: no pointer tracking, only the scroll zoom.
+        if (bottomImgRef.current) {
+          bottomImgRef.current.style.transform = `scale(${bgScale})`;
+        }
+
+        if (topImgRef.current) {
+          topImgRef.current.style.transform = `scale(${bgScale})`;
+        }
+
+        if (topTextRef.current) {
+          topTextRef.current.style.opacity = `${Math.max(1 - maskProgress * 1.8, 0)}`;
+          topTextRef.current.style.transform = `translate3d(0, ${-maskProgress * 40}px, 0)`;
         }
       }
 
-      // Parallax values for .is-bottom: X: -3rem to +3rem, Y: -3.5rem to +3.5rem
-      if (bottomImgRef.current) {
-        const moveX = mx * 35;
-        const moveY = my * 40;
-        bottomImgRef.current.style.transform = `scale(${bgScale}) translate3d(${moveX}px, ${moveY}px, 0)`;
-      }
-
-      // Parallax values for .is-top: rotateY: -1deg to +1deg, rotateX: 2deg to -2deg
-      if (topImgRef.current) {
-        const rotY = mx * 1.2;
-        const rotX = -my * 2.0;
-        topImgRef.current.style.transform = `scale(${bgScale}) rotateX(${rotX}deg) rotateY(${rotY}deg)`;
-      }
-
-      // Fade top hero text out quickly as mask zooms
-      if (topTextRef.current) {
-        const textOpacity = Math.max(1 - maskProgress * 1.8, 0);
-        topTextRef.current.style.opacity = `${textOpacity}`;
-        topTextRef.current.style.transform = `translate3d(0, ${-maskProgress * 40}px, 0)`;
-      }
-
-      // 2. Section Transition Parallax (Webflow Action a-18: 3rem -> -3rem)
-      if (homeTransitionBgRef.current && homeTransitionSectionRef.current) {
-        const rect = homeTransitionSectionRef.current.getBoundingClientRect();
-        const transitionProgress = Math.min(
-          Math.max((viewportHeight - rect.top) / (viewportHeight + rect.height), 0),
+      // Section transition parallax (Webflow a-18: 3rem -> -3rem)
+      if (homeTransitionBgRef.current && transitionRect) {
+        const progress = Math.min(
+          Math.max((viewportHeight - transitionRect.top) / (viewportHeight + transitionRect.height), 0),
           1
         );
-        const moveRem = 3 - transitionProgress * 6; // 3rem -> -3rem
-        homeTransitionBgRef.current.style.transform = `translate3d(0, ${moveRem}rem, 0)`;
+        homeTransitionBgRef.current.style.transform = `translate3d(0, ${3 - progress * 6}rem, 0)`;
       }
 
-      // 3. Travel bottom torn edge Parallax (Webflow Action a-19: 2rem -> 0rem)
-      if (travelBottomBgRef.current && travelSectionRef.current) {
-        const rect = travelSectionRef.current.getBoundingClientRect();
-        const travelProgress = Math.min(
-          Math.max((viewportHeight - rect.top) / (viewportHeight + rect.height), 0),
+      // Travel bottom torn edge parallax (Webflow a-19: 2rem -> 0rem)
+      if (travelBottomBgRef.current && travelRect) {
+        const progress = Math.min(
+          Math.max((viewportHeight - travelRect.top) / (viewportHeight + travelRect.height), 0),
           1
         );
-        const moveRem = 2 - travelProgress * 2; // 2rem -> 0rem
-        travelBottomBgRef.current.style.transform = `translate3d(0, ${moveRem}rem, 0)`;
+        travelBottomBgRef.current.style.transform = `translate3d(0, ${2 - progress * 2}rem, 0)`;
       }
 
-      // 4. Dynamic Navbar Theme:
-      // Initial hero top (before mask expands): light (dark text #3d2d20)
-      // Over sunset, dark transition & travel cards: dark (white text #ffffff)
-      // Over section_journey: light (dark text #3d2d20)
-      if (journeySectionRef.current) {
-        const journeyRect = journeySectionRef.current.getBoundingClientRect();
-        if (journeyRect.top <= 60) {
-          setNavTheme("light");
-        } else if (scrollY > 120) {
-          setNavTheme("dark");
-        } else {
-          setNavTheme("light");
-        }
-      } else {
-        if (scrollY > 120) {
-          setNavTheme("dark");
-        } else {
-          setNavTheme("light");
-        }
+      // Nav theme: dark text on the paper hero and journey, white over photos
+      const nextTheme: "light" | "dark" =
+        journeyTop !== undefined && journeyTop <= 60 ? "light" : scrollY > 120 ? "dark" : "light";
+      if (nextTheme !== lastNavTheme) {
+        lastNavTheme = nextTheme;
+        setNavTheme(nextTheme);
       }
-
-      animationFrameId = requestAnimationFrame(raf);
     };
 
-    animationFrameId = requestAnimationFrame(raf);
+    gsap.ticker.add(update);
 
     return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      cancelAnimationFrame(animationFrameId);
+      gsap.ticker.remove(update);
       lenis.destroy();
     };
   }, []);

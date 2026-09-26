@@ -318,6 +318,8 @@ a {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  /* resting state before the scroll loop's first frame (it zooms 1.2 -> 1) */
+  transform: scale(1.2);
   will-change: transform;
 }
 
