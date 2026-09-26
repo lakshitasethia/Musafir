@@ -399,3 +399,22 @@ async def test_pin_and_set_location(ctx, net, sender):
 async def test_no_saved_results_for_pin(ctx):
     with pytest.raises(ToolError, match="find_nearby_places first"):
         await run(ctx, "send_place_pin", result_number=1)
+
+
+async def test_nominatim_429_is_retried_once(ctx, net, monkeypatch):
+    from app.tools import geo
+
+    monkeypatch.setattr(geo, "NOMINATIM_RETRY_AFTER_S", 0.0)
+    responses = iter(
+        [
+            httpx.Response(429),
+            httpx.Response(200, json=[{"lat": "1", "lon": "2", "display_name": "X"}]),
+        ]
+    )
+    net.on("nominatim", lambda r: next(responses))
+    data = await run(ctx, "set_current_location", place="Somewhere")
+    assert data["location_set_to"] == "X"
+
+    net.on("nominatim", 429)
+    with pytest.raises(ToolError, match="unavailable"):
+        await run(ctx, "set_current_location", place="Elsewhere")

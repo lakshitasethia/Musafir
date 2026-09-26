@@ -35,6 +35,7 @@ _geocode_cache: dict[str, Point | None] = {}
 _geocode_lock = asyncio.Lock()
 _last_geocode = 0.0
 NOMINATIM_MIN_INTERVAL_S = 1.0
+NOMINATIM_RETRY_AFTER_S = 2.0
 
 
 async def nominatim_search(ctx: ToolContext, params: dict) -> list[dict]:
@@ -45,11 +46,17 @@ async def nominatim_search(ctx: ToolContext, params: dict) -> list[dict]:
         if wait > 0:
             await asyncio.sleep(wait)
         try:
-            r = await ctx.http.get(
-                f"{ctx.settings.nominatim_url}/search",
-                params={"format": "jsonv2", **params},
-                timeout=10,
-            )
+            for attempt in range(2):
+                r = await ctx.http.get(
+                    f"{ctx.settings.nominatim_url}/search",
+                    params={"format": "jsonv2", **params},
+                    timeout=10,
+                )
+                # other apps on the same IP share the 1 req/s budget; back off once
+                if r.status_code != 429 or attempt == 1:
+                    break
+                log.info("Nominatim 429, retrying after %.0fs", NOMINATIM_RETRY_AFTER_S)
+                await asyncio.sleep(NOMINATIM_RETRY_AFTER_S)
             if r.status_code == 403:
                 log.warning("Nominatim refused the request (403): check OSM_CONTACT/User-Agent")
             r.raise_for_status()

@@ -73,6 +73,7 @@ def _reset_module_state(monkeypatch):
     places._cache.clear()
     monkeypatch.setattr(geo, "_last_geocode", 0.0)
     monkeypatch.setattr(geo, "NOMINATIM_MIN_INTERVAL_S", 0.0)
+    monkeypatch.setattr(geo, "NOMINATIM_RETRY_AFTER_S", 0.0)
     monkeypatch.setattr(places, "_overpass_down_until", 0.0)
     yield
 
