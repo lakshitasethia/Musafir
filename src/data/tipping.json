@@ -1,0 +1,87 @@
+{
+  "dataset": "tipping",
+  "description": "Tipping and service-charge norms for Musafir's demo countries, from official tourism or government sources. See src/data/schema.ts for the verification levels.",
+  "entries": [
+    {
+      "country": "JP",
+      "countryName": "Japan",
+      "tippingExpected": false,
+      "summary": "Japan has no tipping culture: pay the amount on the bill in restaurants, hotels, taxis and other services. Even where a tip might suit (e.g. a private guide), it isn't expected and is given discreetly.",
+      "checkedOn": "2026-09-26",
+      "sources": [
+        {
+          "url": "https://www.japan.travel/en/faq/",
+          "verification": "page-read",
+          "quote": "No. Japan does not have a tipping culture. In restaurants, hotels, taxis, and other services, you only need to pay the amount shown on the bill."
+        },
+        {
+          "url": "https://www.japan.travel/en/plan/tipping-in-japan/",
+          "verification": "page-read",
+          "quote": "tipping is not expected and should be done discreetly, even in these cases"
+        }
+      ]
+    },
+    {
+      "country": "GB",
+      "countryName": "United Kingdom",
+      "tippingExpected": false,
+      "summary": "Not expected, but polite for good service. Taxis: round up to the nearest pound; 10–15% is a nice gesture. Restaurants: if no service charge was added, 10–15% is well received. Hotel porters: about £2.",
+      "serviceCharge": "Some restaurants add an optional service charge (noted on the bill); you can choose whether to pay it.",
+      "checkedOn": "2026-09-26",
+      "sources": [
+        {
+          "url": "https://www.visitbritain.com/en/plan-your-trip/useful-information",
+          "verification": "page-read",
+          "quote": "Tipping is not expected in Britain like it is in some other countries. [...] It's not necessary to tip but it's polite to do so if you've had good service"
+        },
+        {
+          "url": "https://www.visitbritain.com/en/plan-your-trip/useful-information",
+          "verification": "page-read",
+          "quote": "It's normal to tip taxi drivers and it's customary to round the fare up to the nearest pound. If you choose to tip your taxi driver, a 10-15 percent tip is a nice gesture."
+        },
+        {
+          "url": "https://www.visitbritain.com/en/plan-your-trip/useful-information",
+          "verification": "page-read",
+          "quote": "In restaurants, an optional service charge is sometimes added to your total bill (this will be noted on your bill). You can choose whether to pay it or not. If nothing is added and you are happy with the service, a standard tip of between 10-15 is well received."
+        },
+        {
+          "url": "https://www.visitbritain.com/en/plan-your-trip/useful-information",
+          "verification": "page-read",
+          "quote": "In hotels, if a porter takes luggage to your room for you, it is customary to tip them approximately £2."
+        }
+      ]
+    },
+    {
+      "country": "IN",
+      "countryName": "India",
+      "tippingExpected": null,
+      "summary": "No official source on tipping customs was found. What is official: restaurants and hotels may not add a service charge automatically, and paying one is voluntary.",
+      "serviceCharge": "Voluntary. Under Central Consumer Protection Authority guidelines (4 July 2022), no hotel or restaurant may add a service charge automatically or by default, or refuse service for not paying it. The Delhi High Court upheld these guidelines on 28 March 2025.",
+      "checkedOn": "2026-09-26",
+      "sources": [
+        {
+          "url": "https://www.pib.gov.in/PressReleseDetailm.aspx?PRID=1839133",
+          "verification": "search-index",
+          "quote": "No hotels or restaurants can add service charge automatically or by default in the food bill"
+        },
+        {
+          "url": "https://www.pib.gov.in/PressReleasePage.aspx?PRID=2213227",
+          "verification": "search-index",
+          "quote": "Mandatory Levy of Service Charge by Restaurants Violates Consumer Law: CCPA"
+        }
+      ]
+    }
+  ],
+  "gaps": [
+    {
+      "country": "AE",
+      "reason": "Visit Dubai's practical-information and currency pages block automated readers, so tipping norms couldn't be confirmed from an official page.",
+      "checkedOn": "2026-09-26"
+    },
+    {
+      "country": "IN",
+      "reason": "Customary tip amounts: no official tourism source found; only the service-charge rule is recorded.",
+      "checkedOn": "2026-09-26"
+    }
+  ]
+}
