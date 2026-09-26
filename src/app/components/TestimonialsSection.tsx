@@ -232,7 +232,7 @@ export function TestimonialsSection({ sectionRef }: TestimonialsSectionProps) {
                       </figure>
                       <div className="story_who">{story.who}</div>
                       <div className="story_where">{story.where}</div>
-                      <p className="story_text">{story.text}</p>
+                      <p className="story_text">&ldquo;{story.text}&rdquo;</p>
                     </li>
                   ))}
                 </ol>

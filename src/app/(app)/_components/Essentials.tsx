@@ -15,6 +15,7 @@ import type { ItineraryNode, VibeConfig } from "@/lib/musafir/schemas.ts";
 import { fromMinutes, MINUTES_PER_DAY, toMinutes } from "@/lib/musafir/time.ts";
 import type { TripBundle } from "@/server/trips.ts";
 import { SectionHeader } from "../_ui/SectionHeader";
+import { PackageCard } from "../_ui/PackageCard";
 import { api } from "./api";
 
 interface TripSummary {
@@ -370,19 +371,22 @@ export function PackagesView() {
         </div>
         {err && <p className="mz-error" style={{ margin: 0 }}>{err}</p>}
       </div>
-      <ul className="mz-list">
-        {PACKAGES.map((p) => (
-          <li key={p.id} className="mz-offer mz-list-item" style={{ flexWrap: "wrap" }}>
-            <div style={{ minWidth: 0 }}>
-              <div className="mz-display mz-h3">{p.title}</div>
-              <div className="mz-small mz-muted">{p.blurb}</div>
-            </div>
-            <button className="mz-btn mz-btn-solid mz-btn-sm" disabled={busy !== null} onClick={() => choose(p)}>
-              {busy === p.id ? "Planning…" : "Plan this package"}
-            </button>
-          </li>
-        ))}
-      </ul>
+      <div className="mz-packages">
+        <ul className="mz-pkg-grid">
+          {PACKAGES.map((p) => (
+            <PackageCard
+              key={p.id}
+              id={p.id}
+              title={p.title}
+              blurb={p.blurb}
+              vibe={p.vibe}
+              busy={busy === p.id}
+              disabled={busy !== null}
+              onPlan={() => choose(p)}
+            />
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }
