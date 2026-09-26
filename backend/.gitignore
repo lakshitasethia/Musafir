@@ -1,0 +1,7 @@
+__pycache__/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.env
+# repo root ignores .env*; keep the template
+!.env.example
