@@ -1,0 +1,41 @@
+[project]
+name = "musafir-whatsapp"
+version = "0.1.0"
+description = "Musafir WhatsApp agent: WhatsApp Cloud API webhook + Groq tool-calling agent"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "httpx>=0.27",
+    "pydantic>=2.8",
+    "pydantic-settings>=2.4",
+    "python-multipart>=0.0.9",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.6",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+extend-ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+# long lines inside the system prompt and inline CSS strings
+"app/agent.py" = ["E501"]
+"app/link_page.py" = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
