@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { INTERESTS, type Interest, type Party } from "@/lib/musafir/interests.ts";
 import { api } from "./api";
 
@@ -236,8 +236,9 @@ export function TripList() {
           {reading && <span className="mz-tiny mz-muted">{reading}</span>}
         </div>
 
-        {VIBES.map((v) => (
-          <div key={v.key} className="mz-fader">
+        {VIBES.map((v, i) => (
+          // --v / --lean let CSS grow the side the fader leans toward; --i staggers the entrance
+          <div key={v.key} className="mz-fader is-leaning" style={{ "--v": vibe[v.key], "--lean": Math.abs(vibe[v.key] - 0.5) * 2, "--i": i } as CSSProperties}>
             <span className="mz-label">{v.label}</span>
             <input type="range" min={0} max={1} step={0.05} value={vibe[v.key]} aria-label={v.label} onChange={(e) => setVibe({ ...vibe, [v.key]: Number(e.target.value) })} />
             <div className="mz-fader-ends">

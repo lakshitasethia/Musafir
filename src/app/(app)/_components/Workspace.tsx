@@ -530,9 +530,9 @@ function VibePanel({ vibe, busy, onSave }: { vibe: VibeConfig; busy: boolean; on
       <p className="mz-tiny mz-muted" style={{ margin: 0 }}>
         Pacing tunes self-healing: fast pacing protects the number of stops; slow pacing would rather skip one than rush it.
       </p>
-      {VIBE_FADERS.map((f) => (
-        // --v / --lean let CSS grow the side the fader leans toward
-        <div key={f.key} className="mz-fader" style={{ "--v": v[f.key], "--lean": Math.abs(v[f.key] - 0.5) * 2 } as CSSProperties}>
+      {VIBE_FADERS.map((f, i) => (
+        // --v / --lean let CSS grow the side the fader leans toward; --i staggers the entrance
+        <div key={f.key} className="mz-fader is-leaning" style={{ "--v": Number(v[f.key]), "--lean": Math.abs(Number(v[f.key]) - 0.5) * 2, "--i": i } as CSSProperties}>
           <span className="mz-label">{f.label}</span>
           <input type="range" min={0} max={1} step={0.05} value={v[f.key]} aria-label={f.label} onChange={(e) => setV({ ...v, [f.key]: Number(e.target.value) })} />
           <div className="mz-fader-ends">
