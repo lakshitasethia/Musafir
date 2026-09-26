@@ -7,6 +7,8 @@ import { GridSvg } from "./components/GridSvg";
 import { StarSvg } from "./components/StarSvg";
 import { LogoSvg } from "./components/LogoSvg";
 import { TransitionGridSvg } from "./components/TransitionGridSvg";
+import { JourneySection } from "./components/JourneySection";
+import { TestimonialsSection } from "./components/TestimonialsSection";
 
 export default function FlywardExperience() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -14,6 +16,11 @@ export default function FlywardExperience() {
   const topImgRef = useRef<HTMLImageElement>(null);
   const maskInnerRef = useRef<HTMLDivElement>(null);
   const topTextRef = useRef<HTMLDivElement>(null);
+  const homeTransitionSectionRef = useRef<HTMLElement>(null);
+  const homeTransitionBgRef = useRef<HTMLImageElement>(null);
+  const travelSectionRef = useRef<HTMLElement>(null);
+  const travelBottomBgRef = useRef<HTMLImageElement>(null);
+  const journeySectionRef = useRef<HTMLDivElement>(null);
   const [navTheme, setNavTheme] = useState<"light" | "dark">("light");
 
   // Mouse position state with smooth lerping for 2.5D Parallax
@@ -55,18 +62,27 @@ export default function FlywardExperience() {
       const scrollY = window.scrollY || window.pageYOffset;
       const viewportHeight = window.innerHeight;
 
-      // Hero mask zoom progression (over the first 85vh of scroll)
-      const zoomProgress = Math.min(Math.max(scrollY / (viewportHeight * 0.85), 0), 1);
+      // 1. Hero mask zoom progression (Webflow Action a-8: keyframe 0 to 33% of 200vh hero scroll = ~35vh)
+      const heroScrollRange = viewportHeight; // The 100vh scrollable distance of the 200vh hero
+      const maskProgress = Math.min(Math.max(scrollY / (heroScrollRange * 0.35), 0), 1);
 
       // Webflow Action a-8: mask width expands from 100vw to 750vw
-      const maskWidth = 100 + zoomProgress * 650; // 100vw -> 750vw
-      const bgScale = 1.2 - zoomProgress * 0.2; // 1.2 -> 1.0
+      const maskWidth = 100 + maskProgress * 650; // 100vw -> 750vw
+      const bgScale = 1.2 - maskProgress * 0.2; // 1.2 -> 1.0
 
       // Apply to mask inner
       if (maskInnerRef.current) {
         maskInnerRef.current.style.width = `${maskWidth}vw`;
-        // Hide mask completely when fully zoomed out to prevent any bottom clipping
-        maskInnerRef.current.style.opacity = zoomProgress >= 0.99 ? "0" : "1";
+        if (maskProgress >= 0.95) {
+          maskInnerRef.current.style.opacity = "0";
+          maskInnerRef.current.style.display = "none";
+        } else if (maskProgress > 0.65) {
+          maskInnerRef.current.style.display = "flex";
+          maskInnerRef.current.style.opacity = `${1 - (maskProgress - 0.65) / 0.3}`;
+        } else {
+          maskInnerRef.current.style.display = "flex";
+          maskInnerRef.current.style.opacity = "1";
+        }
       }
 
       // Parallax values for .is-bottom: X: -3rem to +3rem, Y: -3.5rem to +3.5rem
@@ -83,19 +99,54 @@ export default function FlywardExperience() {
         topImgRef.current.style.transform = `scale(${bgScale}) rotateX(${rotX}deg) rotateY(${rotY}deg)`;
       }
 
-      // Fade top hero text out as mask zooms
+      // Fade top hero text out quickly as mask zooms
       if (topTextRef.current) {
-        const textOpacity = Math.max(1 - zoomProgress * 1.4, 0);
+        const textOpacity = Math.max(1 - maskProgress * 1.8, 0);
         topTextRef.current.style.opacity = `${textOpacity}`;
+        topTextRef.current.style.transform = `translate3d(0, ${-maskProgress * 40}px, 0)`;
       }
 
-      // Dynamic Navbar theme adaptation:
-      // When over the sunset ocean or dark transition: white text
-      // When at top initial hero: dark umber (#3d2d20)
-      if (scrollY > viewportHeight * 0.4 && scrollY < viewportHeight * 2.6) {
-        setNavTheme("dark");
+      // 2. Section Transition Parallax (Webflow Action a-18: 3rem -> -3rem)
+      if (homeTransitionBgRef.current && homeTransitionSectionRef.current) {
+        const rect = homeTransitionSectionRef.current.getBoundingClientRect();
+        const transitionProgress = Math.min(
+          Math.max((viewportHeight - rect.top) / (viewportHeight + rect.height), 0),
+          1
+        );
+        const moveRem = 3 - transitionProgress * 6; // 3rem -> -3rem
+        homeTransitionBgRef.current.style.transform = `translate3d(0, ${moveRem}rem, 0)`;
+      }
+
+      // 3. Travel bottom torn edge Parallax (Webflow Action a-19: 2rem -> 0rem)
+      if (travelBottomBgRef.current && travelSectionRef.current) {
+        const rect = travelSectionRef.current.getBoundingClientRect();
+        const travelProgress = Math.min(
+          Math.max((viewportHeight - rect.top) / (viewportHeight + rect.height), 0),
+          1
+        );
+        const moveRem = 2 - travelProgress * 2; // 2rem -> 0rem
+        travelBottomBgRef.current.style.transform = `translate3d(0, ${moveRem}rem, 0)`;
+      }
+
+      // 4. Dynamic Navbar Theme:
+      // Initial hero top (before mask expands): light (dark text #3d2d20)
+      // Over sunset, dark transition & travel cards: dark (white text #ffffff)
+      // Over section_journey: light (dark text #3d2d20)
+      if (journeySectionRef.current) {
+        const journeyRect = journeySectionRef.current.getBoundingClientRect();
+        if (journeyRect.top <= 60) {
+          setNavTheme("light");
+        } else if (scrollY > 120) {
+          setNavTheme("dark");
+        } else {
+          setNavTheme("light");
+        }
       } else {
-        setNavTheme("light");
+        if (scrollY > 120) {
+          setNavTheme("dark");
+        } else {
+          setNavTheme("light");
+        }
       }
 
       animationFrameId = requestAnimationFrame(raf);
@@ -269,7 +320,7 @@ export default function FlywardExperience() {
       </main>
 
       {/* 3. SECTION HOME-TRANSITION ("TRAVEL DESIGNED AROUND YOU" - SCREENSHOT 3) */}
-      <section className="section_home-transition is-static">
+      <section className="section_home-transition is-static" ref={homeTransitionSectionRef}>
         <div className="padding-global padding-section-large is-relative-11 is-xxl">
           <div className="container-max">
             <div className="home-transition_content">
@@ -295,6 +346,7 @@ export default function FlywardExperience() {
 
         {/* Dark Silhouette Organic Mountain Ridge Cutting Across Sunset */}
         <img
+          ref={homeTransitionBgRef}
           src="/images/transition-bg-2.avif"
           alt="Dark Silhouette Mountain Horizon"
           className="home-transition_bg-static"
@@ -302,7 +354,7 @@ export default function FlywardExperience() {
       </section>
 
       {/* 4. SECTION TRAVEL (PRIVATE & CORPORATE CARDS) */}
-      <section className="section_travel">
+      <section className="section_travel" ref={travelSectionRef}>
         <div className="padding-global padding-0">
           <div className="container-max">
             <div className="travel_grid-wrapper">
@@ -396,13 +448,20 @@ export default function FlywardExperience() {
 
         {/* Bottom Silhouette Transition Curve */}
         <img
+          ref={travelBottomBgRef}
           src="/images/remove1-1.avif"
           alt=""
           className="travel_bottom-bg"
         />
       </section>
 
-      {/* 5. BOTTOM-LEFT PRIVACY BADGE (As seen in the screenshots) */}
+      {/* 5. SECTION JOURNEY ("HOW WE SUPPORT EVERY JOURNEY") */}
+      <JourneySection sectionRef={journeySectionRef} />
+
+      {/* 6. SECTION TESTIMONIALS ("TRUSTED BY TRAVELERS WHO RETURN") */}
+      <TestimonialsSection />
+
+      {/* 7. BOTTOM-LEFT PRIVACY BADGE (As seen in the screenshots) */}
       <div
         className="cookie_badge"
         title="Privacy Preferences"

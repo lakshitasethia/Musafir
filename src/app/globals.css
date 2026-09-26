@@ -48,7 +48,8 @@
   box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
   margin: 0;
   padding: 0;
   background-color: var(--white);
@@ -64,7 +65,9 @@ html, body {
 }
 
 @media screen and (max-width: 991px) {
-  html, body {
+
+  html,
+  body {
     font-size: 16px;
   }
 }
@@ -321,6 +324,7 @@ a {
 }
 
 /* HERO INVERTED MASK */
+/* HERO INVERTED MASK */
 .hero_mask-wrapper {
   position: absolute;
   inset: 0%;
@@ -347,13 +351,14 @@ a {
   align-items: center;
   perspective-origin: 50%;
   transform-origin: 50%;
-  will-change: width;
+  will-change: width, opacity;
+  transition: opacity 0.15s ease-out;
 }
 
 .hero_mask-top {
   position: relative;
   width: 100%;
-  height: 100%;
+  flex: 1 0 100%;
   background-color: #fff;
   margin-bottom: -1px;
   z-index: 9;
@@ -362,7 +367,7 @@ a {
 .hero_mask-bottom {
   position: relative;
   width: 100%;
-  height: 100%;
+  flex: 1 0 100%;
   background-color: #fff;
   margin-top: -1px;
   z-index: 9;
@@ -372,6 +377,7 @@ a {
   position: relative;
   width: 100%;
   height: auto;
+  flex: 0 0 auto;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -412,8 +418,9 @@ a {
   align-items: center;
   grid-column-gap: 2rem;
   grid-row-gap: 2rem;
-  padding-top: 1.5rem;
+  padding: 0 1.5rem;
   pointer-events: auto;
+  will-change: opacity, transform;
 }
 
 .heading-style-h3 {
@@ -425,7 +432,7 @@ a {
   text-transform: uppercase;
   color: #ffffff;
   margin: 0;
-  text-shadow: 0 1px 16px rgba(0,0,0,0.18);
+  text-shadow: 0 1px 16px rgba(0, 0, 0, 0.18);
 }
 
 .text-size-medium {
@@ -453,7 +460,7 @@ a {
   font-weight: 400;
   cursor: pointer;
   border: none;
-  box-shadow: 0 3px 16px rgba(0,0,0,0.12);
+  box-shadow: 0 3px 16px rgba(0, 0, 0, 0.12);
   transition: background-color 0.2s ease, transform 0.2s ease;
 }
 
@@ -473,8 +480,8 @@ a {
   flex-flow: column;
   justify-content: center;
   align-items: stretch;
-  grid-column-gap: 2.5rem;
-  grid-row-gap: 2.5rem;
+  grid-column-gap: 3rem;
+  grid-row-gap: 3rem;
   padding-left: 1.5rem;
   padding-right: 1.5rem;
   pointer-events: auto;
@@ -482,7 +489,7 @@ a {
 
 .heading-style-h1 {
   font-family: Apris, Times New Roman, serif;
-  font-size: 4.8rem;
+  font-size: 5rem;
   font-weight: 400;
   line-height: 0.92;
   letter-spacing: 0.02em;
@@ -510,9 +517,11 @@ a {
     width: 100%;
     margin-left: 0;
   }
+
   .heading-style-h1 {
     font-size: 3rem;
   }
+
   .heading-style-h3 {
     font-size: 2.35rem;
   }
@@ -529,7 +538,7 @@ a {
   display: flex;
   position: relative;
   width: 100%;
-  overflow: clip;
+  overflow: visible;
 }
 
 .section_home-transition.is-static {
@@ -550,8 +559,8 @@ a {
 
 .heading-style-h1.is-stroke-white {
   color: var(--transparent);
-  -webkit-text-stroke-width: 1.2px;
-  -webkit-text-stroke-color: #d2d5d8;
+  -webkit-text-stroke-width: 1px;
+  -webkit-text-stroke-color: var(--silver-200);
   font-family: Apris, Times New Roman, serif;
   font-size: 5rem;
   font-weight: 400;
@@ -579,6 +588,7 @@ a {
   height: 100%;
   position: absolute;
   inset: 0%;
+  will-change: transform;
 }
 
 .is-relative-11 {
@@ -603,16 +613,19 @@ a {
    ======================================================== */
 .section_travel {
   position: relative;
-  z-index: 4;
+  z-index: 2;
   width: 100%;
-  background-color: var(--white);
-  padding-top: 12rem;
+  background-color: transparent;
+  color: var(--white);
+  padding-top: 0;
+  overflow: hidden;
 }
 
 .travel_grid-wrapper {
   z-index: 1;
   border: 0.5rem solid var(--white);
   position: relative;
+  background-color: transparent;
 }
 
 .travel_grid {
@@ -738,6 +751,423 @@ a {
   z-index: 9;
   object-fit: cover;
   pointer-events: none;
+  will-change: transform;
+}
+
+/* SECTION JOURNEY (HOW WE SUPPORT EVERY JOURNEY) */
+.section_journey {
+  z-index: 3;
+  background-color: var(--ivory-300);
+  position: relative;
+  overflow: clip;
+}
+
+.padding-section-large {
+  padding-top: 5rem;
+  padding-bottom: 5rem;
+}
+
+.padding-section-large.is-bottom-0 {
+  padding-bottom: 0;
+}
+
+/* Journey heading */
+.journey_heading {
+  z-index: 6;
+  position: relative;
+}
+
+.heading-style-h2 {
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  font-family: Apris, 'Times New Roman', sans-serif;
+  font-size: 3.875rem;
+  font-weight: 400;
+  line-height: 0.9;
+  color: var(--dark-umber-500);
+  margin: 0;
+}
+
+.text-align-center {
+  text-align: center;
+}
+
+/* Journey background grid */
+.journey_grid {
+  z-index: 2;
+  object-fit: cover;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  position: absolute;
+  inset: 0%;
+}
+
+/* Journey SVG path container */
+.journey_path {
+  z-index: 5;
+  flex-flow: column;
+  justify-content: center;
+  align-items: center;
+  width: 70rem;
+  margin-left: auto;
+  display: flex;
+  position: relative;
+}
+
+/* Journey map background */
+.journey_map {
+  z-index: 1;
+  object-fit: cover;
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  inset: 0%;
+  pointer-events: none;
+}
+
+/* Journey Items */
+.journey_item {
+  z-index: 7;
+  grid-column-gap: 1.5rem;
+  grid-row-gap: 1.5rem;
+  flex-flow: column;
+  justify-content: flex-start;
+  align-items: flex-start;
+  width: 20rem;
+  display: flex;
+  position: absolute;
+  inset: 25rem 15rem auto auto;
+}
+
+.journey_item.is-1 {
+  top: 25rem;
+  right: 15rem;
+  left: auto;
+}
+
+.journey_item.is-2 {
+  top: 50rem;
+  left: 10rem;
+  right: auto;
+}
+
+.journey_item.is-3 {
+  top: 70rem;
+  right: 10rem;
+  left: auto;
+}
+
+.journey_item.is-4 {
+  top: 90rem;
+  left: 25rem;
+  right: auto;
+}
+
+/* Journey numbered badge */
+.journey_item-number {
+  z-index: 8;
+  background-color: var(--dark-umber-500);
+  width: 2.5rem;
+  height: 2.5rem;
+  color: var(--white);
+  border-radius: 50%;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.25rem;
+  display: flex;
+  position: absolute;
+  inset: -1.25rem -1.25rem auto auto;
+}
+
+/* Journey image */
+.journey_image {
+  aspect-ratio: 1 / 1.23;
+  object-fit: cover;
+  width: 100%;
+  height: auto;
+}
+
+/* Journey item text content */
+.journey_item-content {
+  grid-column-gap: 1rem;
+  grid-row-gap: 1rem;
+  flex-flow: column;
+  justify-content: flex-start;
+  align-items: flex-start;
+  display: flex;
+}
+
+.heading-style-h5 {
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-family: Apris, 'Times New Roman', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 500;
+  line-height: 1.12;
+  color: var(--dark-umber-500);
+  margin: 0;
+}
+
+.text-size-tiny {
+  letter-spacing: 0.02em;
+  font-size: 1rem;
+  line-height: 1.2;
+  color: var(--dark-umber-500);
+}
+
+/* Responsive adjustments */
+@media screen and (max-width: 1440px) {
+  .journey_path {
+    width: 150%;
+    margin-left: -10%;
+  }
+  .journey_item.is-1 {
+    top: 15rem;
+    right: 2.5rem;
+  }
+  .journey_item.is-2 {
+    top: 40rem;
+    left: 2.5rem;
+  }
+  .journey_item.is-3 {
+    top: 55rem;
+    right: 2.5rem;
+  }
+  .journey_item.is-4 {
+    top: 75rem;
+    left: 2.5rem;
+  }
+}
+
+
+/* ============================================= */
+/* SECTION TESTIMONIALS (TRUSTED BY TRAVELERS)   */
+/* ============================================= */
+.section_testimonials {
+  position: relative;
+  z-index: 4;
+  overflow: clip;
+  background: linear-gradient(
+    180deg,
+    #e8ddd3 0%,
+    #e5d8ce 30%,
+    #ddd0c5 60%,
+    #d5c5b8 100%
+  );
+}
+
+/* Top transition - sunset/mountain edge flowing from journey */
+.testimonials_transition-top-wrp {
+  position: relative;
+  width: 100%;
+  z-index: 2;
+  margin-bottom: -1px;
+}
+
+.testimonials_transition-top {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+/* Padding overrides */
+.padding-section-bottom-25 {
+  padding-top: 12rem;
+  padding-bottom: 30vh;
+}
+
+/* Heading */
+.heading-style-h2 {
+  font-family: 'Freight Big Pro', 'Playfair Display', Georgia, serif;
+  font-size: clamp(2.5rem, 5vw, 4.5rem);
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  color: var(--brown-900);
+  text-transform: uppercase;
+}
+
+.text-align-center {
+  text-align: center;
+}
+
+/* Testimonials list wrapper */
+.testimonials_list-wrapper {
+  position: relative;
+  margin-top: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Testimonial slide */
+.testimonials_slide {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 42rem;
+  margin: 0 auto;
+  animation: fadeInSlide 0.5s ease-out;
+}
+
+@keyframes fadeInSlide {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Testimonial portrait image */
+.testimonials_image {
+  width: 10rem;
+  height: 10rem;
+  border-radius: 0;
+  object-fit: cover;
+  margin-bottom: 2rem;
+}
+
+/* Slide heading area */
+.testimonials_slide-heading {
+  margin-bottom: 1.5rem;
+}
+
+.heading-style-h4 {
+  font-family: 'Freight Big Pro', 'Playfair Display', Georgia, serif;
+  font-size: clamp(1.5rem, 2.5vw, 2.25rem);
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  color: var(--brown-900);
+  text-transform: uppercase;
+  margin-bottom: 0.25rem;
+}
+
+.text-size-caption-medium {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--brown-900);
+}
+
+.text-size-large {
+  font-family: 'Freight Big Pro', 'Playfair Display', Georgia, serif;
+  font-size: clamp(1rem, 1.5vw, 1.25rem);
+  font-weight: 300;
+  line-height: 1.6;
+  color: var(--brown-700, #6b5a4e);
+}
+
+/* Navigation arrows */
+.swiper-button-left-wrp {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+}
+
+.swiper-button-right-wrp {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+}
+
+.swiper-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  border: 1px solid var(--brown-900);
+  background: transparent;
+  cursor: pointer;
+  transition: background-color 0.3s ease, color 0.3s ease;
+  color: var(--brown-900);
+  padding: 0;
+}
+
+.swiper-button:hover {
+  background-color: var(--brown-900);
+  color: #ffffff;
+}
+
+.swiper-button-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Background scenic image (full section backdrop) */
+.testimonials_bg-img {
+  position: absolute;
+  inset: auto 0 0 0;
+  width: 100%;
+  height: auto;
+  z-index: -1;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+/* Bottom transition torn paper */
+.testimonials_transition-bottom-wrp {
+  position: relative;
+  width: 100%;
+  z-index: 2;
+  margin-top: -1px;
+}
+
+.testimonials_transition-bottom {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 767px) {
+  .testimonials_image {
+    width: 7rem;
+    height: 7rem;
+  }
+
+  .swiper-button-left-wrp,
+  .swiper-button-right-wrp {
+    position: relative;
+    top: auto;
+    transform: none;
+  }
+
+  .testimonials_list-wrapper {
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .swiper-button {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  .padding-section-bottom-25 {
+    padding-bottom: 10vh;
+  }
 }
 
 /* COOKIE PRIVACY BADGE */
@@ -754,7 +1184,7 @@ a {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
 .cookie_badge_pill {
