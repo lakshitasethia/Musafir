@@ -1,181 +1,172 @@
 "use client";
 
+import Link from "next/link";
 import React, { useEffect, useState } from "react";
 
+/* Dashed arc drawn inside each grid row, echoing GridSvg in the hero.
+   Stretched with preserveAspectRatio="none"; the stroke stays 1px via
+   vector-effect so it never thickens on wide screens. */
+function RowArc({ flip = false }: { flip?: boolean }) {
+  return (
+    <svg
+      className="footer_arc"
+      viewBox="0 0 1336 346"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
+      <path
+        d={
+          flip
+            ? "M0 346C145.7 136.8 390.5 0 668 0C945.5 0 1190.3 136.8 1336 346"
+            : "M0 0C145.7 209.2 390.5 346 668 346C945.5 346 1190.3 209.2 1336 0"
+        }
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+}
+
 export function FooterSection() {
-  const [dateTime, setDateTime] = useState({
-    date: "Saturday, September 26, 2026",
-    time: "02:29:13 PM",
-  });
+  // Rendered only after mount so server and client markup match; the
+  // viewer's own timezone is used, since Musafir has no single home city.
+  const [now, setNow] = useState<{ date: string; time: string; zone: string } | null>(null);
 
   useEffect(() => {
-    const timeZone = "Asia/Dubai";
-
-    const dateFormatter = new Intl.DateTimeFormat("en-US", {
-      timeZone,
+    const dateFormatter = new Intl.DateTimeFormat("en-GB", {
       weekday: "long",
-      year: "numeric",
-      month: "long",
       day: "numeric",
+      month: "long",
     });
-
-    const timeFormatter = new Intl.DateTimeFormat("en-US", {
-      timeZone,
+    const timeFormatter = new Intl.DateTimeFormat("en-GB", {
       hour: "2-digit",
       minute: "2-digit",
-      second: "2-digit",
-      hour12: true,
     });
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone.replace(/_/g, " ");
 
-    const updateClock = () => {
-      const now = new Date();
-      setDateTime({
-        date: dateFormatter.format(now),
-        time: timeFormatter.format(now),
-      });
+    const tick = () => {
+      const d = new Date();
+      setNow({ date: dateFormatter.format(d), time: timeFormatter.format(d), zone });
     };
 
-    updateClock();
-    const timer = setInterval(updateClock, 1000);
+    tick();
+    const timer = setInterval(tick, 15_000);
     return () => clearInterval(timer);
   }, []);
 
   return (
-    <footer className="footer_wrapper" id="footer">
-      {/* Layered cinematic blurred background */}
-      <div className="footer_bg-container" aria-hidden="true">
-        <div className="footer_bg-scenic" />
-        <div className="footer_bg-overlay" />
-      </div>
+    <footer className="footer_paper" id="footer">
+      {/* Nautical coastline line-art bleeding off both edges */}
+      <img
+        src="/images/transition-map.svg"
+        alt=""
+        aria-hidden="true"
+        className="footer_map footer_map-right"
+      />
+      <img
+        src="/images/transition-map.svg"
+        alt=""
+        aria-hidden="true"
+        className="footer_map footer_map-left"
+      />
 
-      {/* Main footer foreground content */}
-      <div className="section_footer">
-        <div className="footer_content">
-          <div className="footer_main">
-            {/* Top row: 3 columns on left, accreditation on right */}
-            <div className="footer_top-wrapper">
-              <div className="footer_grid">
-                {/* Column 1: MENU */}
-                <div className="footer_column">
-                  <span className="footer_column-heading">MENU</span>
-                  <nav className="footer_column-content" aria-label="Footer Menu">
-                    <a href="#about" className="footer_link">
-                      About
-                    </a>
-                    <a href="#private" className="footer_link">
-                      Private
-                    </a>
-                    <a href="#corporate" className="footer_link">
-                      Corporate
-                    </a>
-                    <a href="#careers" className="footer_link">
-                      Careers
-                    </a>
-                    <a href="#contact" className="footer_link">
-                      Contact
-                    </a>
-                  </nav>
-                </div>
+      <div className="footer_sheet">
+        {/* Row 1: statement */}
+        <div className="footer_row">
+          <RowArc />
+          <h2 className="footer_headline">
+            Plans break.
+            <br />
+            Journeys don&rsquo;t.
+          </h2>
 
-                {/* Column 2: SOCIALS */}
-                <div className="footer_column">
-                  <span className="footer_column-heading">SOCIALS</span>
-                  <nav className="footer_column-content" aria-label="Social Links">
-                    <a
-                      href="https://www.instagram.com/flyward"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="footer_link"
-                    >
-                      Instagram
-                    </a>
-                    <a
-                      href="https://www.tiktok.com/@flyward"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="footer_link"
-                    >
-                      TikTok
-                    </a>
-                  </nav>
-                </div>
-
-                {/* Column 3: LOCATION */}
-                <div className="footer_column footer_column-location">
-                  <span className="footer_column-heading">LOCATION</span>
-                  <div className="footer_column-content">
-                    <span className="footer_text">Dubai, UAE</span>
-                    <span className="footer_text footer_text-nowrap" data-date>
-                      {dateTime.date}
-                    </span>
-                    <span className="footer_text" data-time>
-                      {dateTime.time}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right-side accreditation block */}
-              <div className="footer_accreditation">
-                <div className="footer_accreditation-item">
-                  IATA Agent: 8622194
-                </div>
-                <div className="footer_accreditation-item">
-                  DMCC License: 900695
-                </div>
-                <div className="footer_accreditation-item">
-                  DCAA Accredited
-                </div>
-              </div>
+          <div className="footer_cell footer_cell-intro">
+            <p className="footer_body">
+              Musafir drafts every day of your trip from real places, then
+              quietly re-plans it when a train runs late, a museum shuts or the
+              rain rolls in. You only step in when a choice is truly yours to
+              make.
+            </p>
+            <div className="footer_actions">
+              <Link href="/signup" className="footer_cta">
+                Start a trip
+              </Link>
+              <Link href="/login" className="footer_cta is-ghost">
+                Log in
+              </Link>
             </div>
-
-            {/* Bottom legal row */}
-            <div className="footer_bottom">
-              <div className="footer_bottom-left">
-                © Flyward FZCO, a Panathon company
-              </div>
-              <div className="footer_bottom-center">
-                All Rights Reserved
-              </div>
-              <div className="footer_bottom-links">
-                <a
-                  href="https://www.iubenda.com/privacy-policy/59084511/cookie-policy"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="footer_legal-link"
-                >
-                  Cookie Policy
-                </a>
-                <a
-                  href="https://www.iubenda.com/privacy-policy/59084511"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="footer_legal-link"
-                >
-                  Privacy Policy
-                </a>
-                <a
-                  href="https://www.iubenda.com/terms-and-conditions/59084511"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="footer_legal-link"
-                >
-                  Terms of Use
-                </a>
-              </div>
-            </div>
-          </div>
-
-          {/* Giant FLYWARD signature typography */}
-          <div className="footer_logo-wrapper" aria-hidden="true">
-            <img
-              src="/images/footer-logo.svg"
-              alt="FLYWARD"
-              className="footer_logo"
-              loading="lazy"
-            />
           </div>
         </div>
+
+        {/* Row 2: wayfinding, staggered into the grid */}
+        <div className="footer_row is-second">
+          <RowArc flip />
+
+          <div className="footer_cell footer_cell-time">
+            <span className="footer_label">Your local time</span>
+            <span className="footer_clock" suppressHydrationWarning>
+              {now?.time ?? "--:--"}
+            </span>
+            <span className="footer_meta">
+              {now ? `${now.date}, ${now.zone}` : " "}
+            </span>
+          </div>
+
+          <nav className="footer_cell footer_cell-nav" aria-label="Footer">
+            <span className="footer_label">Explore</span>
+            <a href="#discover" className="footer_link">
+              Discover
+            </a>
+            <a href="#how-we-support" className="footer_link">
+              How it works
+            </a>
+            <Link href="/trip" className="footer_link">
+              Your trips
+            </Link>
+            <Link href="/ops" className="footer_link">
+              Operator console
+            </Link>
+          </nav>
+
+          <div className="footer_cell footer_cell-data">
+            <span className="footer_label">Built on open data</span>
+            <a
+              href="https://www.openstreetmap.org/copyright"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="footer_link"
+            >
+              © OpenStreetMap contributors
+            </a>
+            <a
+              href="https://open-meteo.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="footer_link"
+            >
+              Weather by Open-Meteo
+            </a>
+            <a
+              href="https://project-osrm.org/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="footer_link"
+            >
+              Routing by OSRM
+            </a>
+          </div>
+        </div>
+
+        <div className="footer_bottom-row">
+          <span>© 2026 Musafir</span>
+          <a href="#" className="footer_link is-small">
+            Back to top
+          </a>
+        </div>
+      </div>
+
+      {/* Wordmark set in Apris, cropped by the page edge */}
+      <div className="footer_wordmark" aria-hidden="true">
+        Musafir
       </div>
     </footer>
   );

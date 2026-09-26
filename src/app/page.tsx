@@ -5,13 +5,12 @@ import Lenis from "lenis";
 import { HeroMask } from "./components/HeroMask";
 import { GridSvg } from "./components/GridSvg";
 import { StarSvg } from "./components/StarSvg";
-import { LogoSvg } from "./components/LogoSvg";
 import { TransitionGridSvg } from "./components/TransitionGridSvg";
 import { JourneySection } from "./components/JourneySection";
 import { TestimonialsSection } from "./components/TestimonialsSection";
 import { FooterSection } from "./components/FooterSection";
 
-export default function FlywardExperience() {
+export default function MusafirExperience() {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomImgRef = useRef<HTMLImageElement>(null);
   const topImgRef = useRef<HTMLImageElement>(null);
@@ -194,9 +193,9 @@ export default function FlywardExperience() {
             </nav>
 
             {/* Center Brand Logo */}
-            <a href="/" className="nav_brand" aria-label="Flyward Home">
+            <a href="/" className="nav_brand" aria-label="Musafir home">
               <div className="nav_logo">
-                <LogoSvg />
+                <span className="nav_wordmark">Musafir</span>
               </div>
             </a>
 
@@ -254,13 +253,13 @@ export default function FlywardExperience() {
                 <img
                   ref={bottomImgRef}
                   src="/images/hero-bottom.avif"
-                  alt="Flyward Horizon Sea View"
+                  alt="Sea view at the horizon"
                   className="hero_bg-img is-bottom"
                 />
                 <img
                   ref={topImgRef}
                   src="/images/hero-top.avif"
-                  alt="Flyward Horizon Traveler"
+                  alt="Traveller looking out at the horizon"
                   className="hero_bg-img is-top"
                 />
               </div>
@@ -323,7 +322,7 @@ export default function FlywardExperience() {
                   <br />
                   <br />
                   From frequent business travel to once-in-a-lifetime journeys,
-                  Flyward operates as an extension of your world.
+                  Musafir operates as an extension of your world.
                 </p>
               </div>
             </div>

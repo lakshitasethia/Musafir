@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Flyward | Redefining Travel for a Modern World",
+  title: "Musafir | Redefining Travel for a Modern World",
   description:
     "We manage travel end to end for individuals and businesses. As your travel partner, we take care of every detail, so you can focus on what really matters.",
   icons: {
