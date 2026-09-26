@@ -1,0 +1,55 @@
+{
+  "dataset": "plug-types",
+  "description": "Mains plug types, voltage and frequency for Musafir's demo countries, copied from official tourism sources. See src/data/schema.ts for the verification levels.",
+  "entries": [
+    {
+      "country": "JP",
+      "countryName": "Japan",
+      "plugTypes": ["A"],
+      "voltageV": [100],
+      "frequencyHz": [50, 60],
+      "notes": "50 Hz in eastern Japan, 60 Hz in western Japan (including Nagoya, Kyoto and Osaka).",
+      "checkedOn": "2026-09-26",
+      "sources": [
+        {
+          "url": "https://www.japan.travel/en/faq/",
+          "verification": "page-read",
+          "quote": "Power outlets use Type A plugs."
+        },
+        {
+          "url": "https://www.japan.travel/en/plan/plug-and-electricity/",
+          "verification": "page-read",
+          "quote": "The voltage used throughout Japan is uniformly 100 volts, A.C. There are two kinds of frequencies in use—50 Hertz in eastern Japan and 60 Hertz in western Japan (including Nagoya, Kyoto and Osaka)."
+        }
+      ]
+    },
+    {
+      "country": "GB",
+      "countryName": "United Kingdom",
+      "plugTypes": ["G"],
+      "voltageV": [220, 240],
+      "frequencyHz": [50],
+      "notes": "Three rectangular pins.",
+      "checkedOn": "2026-09-26",
+      "sources": [
+        {
+          "url": "https://www.visitbritain.com/en/plan-your-trip/useful-information",
+          "verification": "page-read",
+          "quote": "The voltage in Britain is 220/240 AC, 50Hz and electrical plugs (plug type G) have three rectangular pins"
+        }
+      ]
+    }
+  ],
+  "gaps": [
+    {
+      "country": "IN",
+      "reason": "No official page stating the plug types for visitors could be read (the IEC World Plugs site and the BIS plug-standard PDF couldn't be read automatically).",
+      "checkedOn": "2026-09-26"
+    },
+    {
+      "country": "AE",
+      "reason": "No official page stating the plug type could be read (u.ae and visitdubai.com block automated readers; the IEC World Plugs site too).",
+      "checkedOn": "2026-09-26"
+    }
+  ]
+}

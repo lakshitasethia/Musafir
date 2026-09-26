@@ -1,0 +1,230 @@
+{
+  "dataset": "emergency-numbers",
+  "description": "Emergency and helpline numbers for Musafir's demo countries. Every number is copied from the cited official page; see src/data/schema.ts for the verification levels.",
+  "entries": [
+    {
+      "country": "IN",
+      "countryName": "India",
+      "number": "112",
+      "services": ["ALL"],
+      "label": "Emergency (police, fire, ambulance)",
+      "notes": "Single nationwide number of the Emergency Response Support System (ERSS); dispatches police, fire, health and other services.",
+      "checkedOn": "2026-09-26",
+      "sources": [
+        {
+          "url": "https://112.gov.in/",
+          "verification": "search-index",
+          "quote": "The Emergency Response Support System (ERSS) is a nationwide, unified emergency response system with a single emergency number '112', for reporting and addressing all kinds of emergencies from across the country."
+        }
+      ]
+    },
+    {
+      "country": "IN",
+      "countryName": "India",
+      "number": "100",
+      "services": ["POLICE"],
+      "label": "Police",
+      "notes": "Integrated into 112.",
+      "checkedOn": "2026-09-26",
+      "sources": [
+        {
+          "url": "https://www.mha.gov.in/en/commoncontent/emergency-response-support-system-erss",
+          "verification": "search-index",
+          "quote": "The Emergency Response Centre has been integrated with Police (100), Fire (101), Health (108) and Women helpline (1090) Services to provide emergency services via single emergency number - 112."
+        }
+      ]
+    },
+    {
+      "country": "IN",
+      "countryName": "India",
+      "number": "101",
+      "services": ["FIRE"],
+      "label": "Fire",
+      "notes": "Integrated into 112.",
+      "checkedOn": "2026-09-26",
+      "sources": [
+        {
+          "url": "https://www.mha.gov.in/en/commoncontent/emergency-response-support-system-erss",
+          "verification": "search-index",
+          "quote": "The Emergency Response Centre has been integrated with Police (100), Fire (101), Health (108) and Women helpline (1090) Services to provide emergency services via single emergency number - 112."
+        }
+      ]
+    },
+    {
+      "country": "IN",
+      "countryName": "India",
+      "number": "108",
+      "services": ["AMBULANCE"],
+      "label": "Health / ambulance",
+      "notes": "Integrated into 112.",
+      "checkedOn": "2026-09-26",
+      "sources": [
+        {
+          "url": "https://www.mha.gov.in/en/commoncontent/emergency-response-support-system-erss",
+          "verification": "search-index",
+          "quote": "The Emergency Response Centre has been integrated with Police (100), Fire (101), Health (108) and Women helpline (1090) Services to provide emergency services via single emergency number - 112."
+        }
+      ]
+    },
+    {
+      "country": "JP",
+      "countryName": "Japan",
+      "number": "110",
+      "services": ["POLICE"],
+      "label": "Police",
+      "checkedOn": "2026-09-26",
+      "sources": [
+        {
+          "url": "https://www.japan.travel/en/plan/emergencies/",
+          "verification": "page-read",
+          "quote": "Police: 110"
+        }
+      ]
+    },
+    {
+      "country": "JP",
+      "countryName": "Japan",
+      "number": "119",
+      "services": ["FIRE", "AMBULANCE"],
+      "label": "Fire and ambulance",
+      "checkedOn": "2026-09-26",
+      "sources": [
+        {
+          "url": "https://www.japan.travel/en/plan/emergencies/",
+          "verification": "search-index",
+          "quote": "Dial 110 for an urgent call to the police and 119 for fire or ambulance"
+        }
+      ]
+    },
+    {
+      "country": "JP",
+      "countryName": "Japan",
+      "number": "050-3816-2787",
+      "services": ["TOURIST_HELPLINE"],
+      "label": "Japan Visitor Hotline (JNTO)",
+      "notes": "24 hours, every day. English, Chinese, Korean and Japanese. From outside Japan: +81-50-3816-2787.",
+      "checkedOn": "2026-09-26",
+      "sources": [
+        {
+          "url": "https://www.japan.travel/en/plan/emergencies/",
+          "verification": "page-read",
+          "quote": "JNTO Japan Visitor Hotline: 050-3816-2787 - provides emergency support for illness, disasters, and other emergencies. Available 24 hours daily, supports English, Chinese, Korean, and Japanese."
+        }
+      ]
+    },
+    {
+      "country": "JP",
+      "countryName": "Japan",
+      "number": "03-3501-0110",
+      "services": ["NON_EMERGENCY_POLICE"],
+      "label": "Tokyo Metropolitan Police English helpline",
+      "area": "Tokyo",
+      "notes": "24 hours. Not an emergency line; dial 110 in an emergency.",
+      "checkedOn": "2026-09-26",
+      "sources": [
+        {
+          "url": "https://www.japan.travel/en/plan/emergencies/",
+          "verification": "page-read",
+          "quote": "Tokyo Metropolitan Police English Helpline: 03-3501-0110 - available 24 hours daily for English-language assistance"
+        }
+      ]
+    },
+    {
+      "country": "AE",
+      "countryName": "United Arab Emirates",
+      "number": "999",
+      "services": ["POLICE"],
+      "label": "Police",
+      "checkedOn": "2026-09-26",
+      "sources": [
+        {
+          "url": "https://u.ae/en/information-and-services/justice-safety-and-the-law/handling-emergencies",
+          "verification": "search-index",
+          "quote": "998 for ambulance, 999 for police, and 997 for fire department (civil defence)."
+        }
+      ]
+    },
+    {
+      "country": "AE",
+      "countryName": "United Arab Emirates",
+      "number": "998",
+      "services": ["AMBULANCE"],
+      "label": "Ambulance",
+      "checkedOn": "2026-09-26",
+      "sources": [
+        {
+          "url": "https://u.ae/en/information-and-services/justice-safety-and-the-law/handling-emergencies",
+          "verification": "search-index",
+          "quote": "998 for ambulance, 999 for police, and 997 for fire department (civil defence)."
+        }
+      ]
+    },
+    {
+      "country": "AE",
+      "countryName": "United Arab Emirates",
+      "number": "997",
+      "services": ["FIRE"],
+      "label": "Fire (civil defence)",
+      "checkedOn": "2026-09-26",
+      "sources": [
+        {
+          "url": "https://u.ae/en/information-and-services/justice-safety-and-the-law/handling-emergencies",
+          "verification": "search-index",
+          "quote": "998 for ambulance, 999 for police, and 997 for fire department (civil defence)."
+        }
+      ]
+    },
+    {
+      "country": "GB",
+      "countryName": "United Kingdom",
+      "number": "999",
+      "services": ["POLICE", "FIRE", "AMBULANCE"],
+      "label": "Emergency (police, fire, ambulance)",
+      "checkedOn": "2026-09-26",
+      "sources": [
+        {
+          "url": "https://www.visitbritain.com/en/plan-your-trip/useful-information",
+          "verification": "page-read",
+          "quote": "Dial 999 to reach the police, fire and ambulance departments in an emergency"
+        }
+      ]
+    },
+    {
+      "country": "GB",
+      "countryName": "United Kingdom",
+      "number": "111",
+      "services": ["NON_EMERGENCY_MEDICAL"],
+      "label": "Non-emergency medical help",
+      "checkedOn": "2026-09-26",
+      "sources": [
+        {
+          "url": "https://www.visitbritain.com/en/plan-your-trip/useful-information",
+          "verification": "page-read",
+          "quote": "call 111, the national non-emergency medical number"
+        }
+      ]
+    },
+    {
+      "country": "GB",
+      "countryName": "United Kingdom",
+      "number": "101",
+      "services": ["NON_EMERGENCY_POLICE"],
+      "label": "Police, non-emergency",
+      "checkedOn": "2026-09-26",
+      "sources": [
+        {
+          "url": "https://www.visitbritain.com/en/plan-your-trip/useful-information",
+          "verification": "page-read",
+          "quote": "Use 101 when you need to contact the police for matters that do not require an immediate response"
+        }
+      ]
+    }
+  ],
+  "gaps": [
+    {
+      "country": "IN",
+      "reason": "A women's helpline number is not listed: the MHA page names 1090, which is a state-level number, and a national number wasn't confirmed from an official page.",
+      "checkedOn": "2026-09-26"
+    }
+  ]
+}

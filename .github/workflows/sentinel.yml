@@ -1,0 +1,68 @@
+# Scheduled Sentinel ping (CLAUDE.md §5: the zero-LLM watchdog).
+#
+# Vercel Hobby cron runs at most once a day, so this workflow pings the app's
+# /api/sentinel route on a schedule instead. Trip-page opens and the manual
+# forecast check also trigger the sentinel; this ping covers everything else.
+#
+# Setup (repo → Settings → Secrets and variables → Actions):
+#   SENTINEL_URL    full URL, e.g. https://<app>.vercel.app/api/sentinel
+#   SENTINEL_TOKEN  shared secret; the route must reject requests without
+#                   `Authorization: Bearer <SENTINEL_TOKEN>` (see docs/api-contract.md)
+# Without SENTINEL_URL the job exits successfully and does nothing.
+#
+# Cost and limits (GitHub docs, checked 2026-09-26):
+#   - Private repos get 2,000 free Actions minutes/month on GitHub Free. Hourly runs
+#     are at most ~744 runs/month, leaving room for CI. Runs every 10 minutes would
+#     be ~4,460/month and exceed the free minutes.
+#   - The shortest schedule interval is 5 minutes. Schedules run only on the
+#     default branch and can be delayed or dropped under load, especially at the
+#     top of the hour, hence minute 17.
+name: Sentinel ping
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: sentinel
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping /api/sentinel
+        env:
+          SENTINEL_URL: ${{ secrets.SENTINEL_URL }}
+          SENTINEL_TOKEN: ${{ secrets.SENTINEL_TOKEN }}
+        run: |
+          set -u
+          if [ -z "${SENTINEL_URL}" ]; then
+            echo "::notice::SENTINEL_URL is not set; skipping the sentinel ping."
+            exit 0
+          fi
+          if [ -z "${SENTINEL_TOKEN}" ]; then
+            echo "::error::SENTINEL_URL is set but SENTINEL_TOKEN is empty; the sentinel must not run unauthenticated."
+            exit 1
+          fi
+          status=$(curl --silent --show-error --output response.txt --write-out '%{http_code}' \
+            --max-time 60 --retry 2 --retry-delay 10 --retry-all-errors \
+            --request POST \
+            --header "Authorization: Bearer ${SENTINEL_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data '{"source":"github-actions"}' \
+            "${SENTINEL_URL}") || status="000"
+          echo "HTTP ${status}"
+          head -c 500 response.txt 2>/dev/null || true
+          echo
+          case "${status}" in
+            2??) exit 0 ;;
+            404) echo "::warning::/api/sentinel returned 404; the route may not be deployed yet."; exit 0 ;;
+            401|403) echo "::error::The sentinel rejected the token (HTTP ${status})."; exit 1 ;;
+            000) echo "::error::Could not reach ${SENTINEL_URL}."; exit 1 ;;
+            *) echo "::error::Sentinel ping failed with HTTP ${status}."; exit 1 ;;
+          esac
