@@ -68,7 +68,7 @@ export function CommuteMap({ day, onCluster }: { day: DaySchedule; onCluster?: (
     if (!boxRef.current || failed) return;
     let map: MapLibreMap;
     try {
-      map = new MapLibreMap({ container: boxRef.current, style: MAP_STYLE_URL, center: [0, 20], zoom: 1.5 });
+      map = new MapLibreMap({ container: boxRef.current, style: MAP_STYLE_URL, center: [0, 20], zoom: 1.5, cooperativeGestures: true });
     } catch (e) {
       const message = (e as Error).message || "the map couldn't start";
       queueMicrotask(() => setFailed(message));

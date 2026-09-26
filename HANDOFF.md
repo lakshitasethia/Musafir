@@ -10,6 +10,8 @@ Behaviour is done and tested; layout-only rules live in `app.functional.css`. St
 | **NEW · My dashboard** `/dashboard` (traveller) and **Fleet dashboard** `/ops/dashboard` (operator): stat tiles + live Neo4j graph + side panel | `_components/Dashboard.tsx`, `_components/GraphView.tsx` | `.mz-dash-tiles`, `.mz-dash-tile`, `.mz-dash`, `.mz-dash-graph`, `.mz-dash-side`, `.mz-dash-legend`, `.mz-cypher`; SVG: `.mz-graph`, `.mz-graph-edge` (+ `.t-NEXT`, `.t-FOR`), `.mz-graph-label`, `.mz-graph-edge-label`. Node colours are set in `GraphView.tsx` (`STYLE`) from our palette — tell Aryan if you want them changed |
 | **NEW · "Something changed?"** box (traveller trip page, replaces the delay/closure/rain buttons) | `_components/Workspace.tsx` → `ReportBox` | `.mz-report` (also has `.mz-simulator`, so it inherits the dark band — decide if it should stay dark) |
 | **NEW · Weather advisory card** in the operator queue (`/ops`): chance of rain, note field, "Send to traveller" / "Keep internal" | `_components/OpsConsole.tsx` → `AdvisoryCard` | `.mz-card.u-RECOMMENDATION`, `.mz-tier.t-TRAVELLER`, input `.mz-input` |
+| **NEW · WhatsApp "On-ground help"** floating pill on every traveller screen (opens the bot, pre-filled with the trip) | `_components/WhatsAppHelp.tsx` (mounted in `(app)/layout.tsx`) | `.mz-wa-help` (+ `strong`, `em`). Shows only when the bot number is known: set `WHATSAPP_DISPLAY_NUMBER` or a valid `WHATSAPP_ACCESS_TOKEN` |
+| **Zoom**: maps and the graph no longer steal page scroll — Ctrl/⌘ + scroll or the + / − buttons | `TwinMap`, `CommuteMap` (MapLibre cooperative gestures), `GraphView` | `.mz-graph-zoom`, `.mz-graph-hint` |
 | Weather digital twin panel — **now operator-only** (operator trip view) | `_components/WeatherTwin.tsx` | styled by you already (`.mz-twin*`) |
 | Twin map, `/ops/twin`, new-trip form chips, suggestion cards, login switch | see previous pass | already styled |
 
@@ -24,7 +26,7 @@ Nav changed: traveller top bar = HOME · **DASHBOARD** · TRIPS · FLIGHTS · HO
 
 ## Mandatory hackathon items — status
 1. Live weather ✅ · 2. Map ✅ · 3. Social signals ✅ (Mastodon, Lemmy, GDELT) · 4. What-if simulation ✅ (operator twin; the real trip is never touched).
-5. **Nugen alignment** ⚠️ Our pipeline works up to Nugen; the account has credits and READY documents, but **every alignment fails instantly on Nugen's side** (`Nugen job creation failed: HTTP 502 Bad Gateway`) and their inference returns 502 for every model. Evidence for the organisers: `alignment_01m3fyp5cqtdq9q6` (latest), `alignment_01m3fv8kmqq4kyz1` (first), 11 projects 21:52–22:52 UTC 26 Sep. When Nugen works:
+5. **Nugen alignment** ⚠️ Not a file problem: Nugen's own pipeline generated a 20-question benchmark from our document (`benchmark_01m3g283qt4ecg4p`, READY). What fails is their GPU side — training-job creation (502), chat/completions (502), embeddings (503). Our pipeline works up to Nugen; the account has credits and READY documents, but **every alignment fails instantly on Nugen's side** (`Nugen job creation failed: HTTP 502 Bad Gateway`) and their inference returns 502 for every model. Evidence for the organisers: `alignment_01m3fyp5cqtdq9q6` (latest), `alignment_01m3fv8kmqq4kyz1` (first), 11 projects 21:52–22:52 UTC 26 Sep. When Nugen works:
    ```
    node --experimental-strip-types --env-file=.env.local scripts/nugen-align.mts align
    node --experimental-strip-types --env-file=.env.local scripts/nugen-align.mts status   # repeat until READY / early-deployable
@@ -32,6 +34,10 @@ Nav changed: traveller top bar = HOME · **DASHBOARD** · TRIPS · FLIGHTS · HO
    node --experimental-strip-types --env-file=.env.local scripts/nugen-align.mts eval
    ```
    then `NUGEN_MODEL=<printed id>` in `.env.local` (key is named `NUGEN_API`; both names work). A test proves the app then routes the twin's social reading to the aligned model.
+
+## Needs a human
+- **WhatsApp**: the Meta access token expired (temporary tokens last 24 h) — regenerate at developers.facebook.com → WhatsApp → API Setup (or a permanent System User token) and paste `WHATSAPP_ACCESS_TOKEN` into `.env.local`; optionally set `WHATSAPP_DISPLAY_NUMBER`.
+- **Nugen**: send the organisers the evidence above.
 
 ## Next (not started)
 - Travel buddies (swipe to match solo travellers / join groups) — new collection must go into the Neo4j adapter + mapping + import; account-only, 18+ attestation, block/report.

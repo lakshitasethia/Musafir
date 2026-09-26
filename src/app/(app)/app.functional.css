@@ -52,7 +52,10 @@
 .mz-dash-tile { display: flex; flex-direction: column; gap: 4px; padding: 16px; border: 1px solid var(--mz-line, #c2c6ca); border-radius: 12px; }
 .mz-dash { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) 320px; align-items: start; }
 .mz-dash-graph { padding: 0; overflow: hidden; }
-.mz-graph { width: 100%; height: auto; display: block; touch-action: none; background: #fbf8f3; user-select: none; }
+.mz-graph { width: 100%; height: auto; display: block; touch-action: pan-y; background: #fbf8f3; user-select: none; }
+.mz-graph-wrap { position: relative; }
+.mz-graph-zoom { position: absolute; top: 8px; right: 8px; display: flex; gap: 4px; z-index: 1; }
+.mz-graph-hint { margin: 0; padding: 4px 12px; }
 .mz-graph-edge { stroke: #c2c6ca; stroke-width: 1.2; }
 .mz-graph-edge.t-NEXT { stroke: #5e8b72; stroke-dasharray: 4 3; }
 .mz-graph-edge.t-FOR { stroke: #b8534f; }
@@ -62,3 +65,11 @@
 .mz-dash-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; }
 .mz-cypher { white-space: pre-wrap; margin: 8px 0 0; }
 @media (max-width: 860px) { .mz-dash { grid-template-columns: 1fr; } }
+
+/* WhatsApp on-ground help (travellers) — floating, above the action ribbon; Lakshita styles in app.css. */
+.mz-wa-help { position: fixed; right: max(16px, env(safe-area-inset-right)); bottom: max(88px, calc(env(safe-area-inset-bottom) + 88px)); z-index: 60; display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 8px 16px 8px 12px; border-radius: 999px; background: #1f7a4d; color: #fbf8f3; text-decoration: none; box-shadow: 0 6px 20px rgba(28, 33, 36, 0.25); }
+.mz-wa-help span { display: flex; flex-direction: column; line-height: 1.1; }
+.mz-wa-help strong { font: 600 14px "Founders Grotesk Text", system-ui, sans-serif; }
+.mz-wa-help em { font: 11px "Founders Grotesk Text", system-ui, sans-serif; font-style: normal; opacity: 0.85; }
+.mz-wa-help:focus-visible { outline: 3px solid #3d2d20; outline-offset: 2px; }
+@media (max-width: 480px) { .mz-wa-help span em { display: none; } .mz-wa-help { padding: 8px 14px; } }

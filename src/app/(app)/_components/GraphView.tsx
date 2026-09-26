@@ -40,26 +40,58 @@ interface P {
   fixed?: boolean;
 }
 
-export function GraphView({ nodes, edges, selected, onSelect }: { nodes: GNode[]; edges: GEdge[]; selected?: string | null; onSelect: (n: GNode | null) => void }) {
+export function GraphView({
+  nodes,
+  edges,
+  selected,
+  onSelect,
+}: {
+  nodes: GNode[];
+  edges: GEdge[];
+  selected?: string | null;
+  onSelect: (n: GNode | null) => void;
+}) {
   const pos = useRef(new Map<string, P>());
   // Render from a snapshot (refs can't be read during render).
-  const [snap, setSnap] = useState<Map<string, { x: number; y: number }>>(new Map());
-  const publish = () => setSnap(new Map([...pos.current].map(([k, v]) => [k, { x: v.x, y: v.y }])));
+  const [snap, setSnap] = useState<Map<string, { x: number; y: number }>>(
+    new Map(),
+  );
+  const publish = () =>
+    setSnap(new Map([...pos.current].map(([k, v]) => [k, { x: v.x, y: v.y }])));
   const [view, setView] = useState({ x: 0, y: 0, k: 1 });
-  const drag = useRef<{ id: string | null; sx: number; sy: number; vx: number; vy: number } | null>(null);
+  const drag = useRef<{
+    id: string | null;
+    sx: number;
+    sy: number;
+    vx: number;
+    vy: number;
+  } | null>(null);
   const svg = useRef<SVGSVGElement>(null);
-  const key = useMemo(() => nodes.map((n) => n.id).join("|") + "#" + edges.length, [nodes, edges]);
+  const key = useMemo(
+    () => nodes.map((n) => n.id).join("|") + "#" + edges.length,
+    [nodes, edges],
+  );
 
   // (Re)seed positions: keep known nodes where they are, place new ones near a neighbour.
   useEffect(() => {
     const m = pos.current;
-    for (const id of [...m.keys()]) if (!nodes.some((n) => n.id === id)) m.delete(id);
+    for (const id of [...m.keys()])
+      if (!nodes.some((n) => n.id === id)) m.delete(id);
     nodes.forEach((n, i) => {
       if (m.has(n.id)) return;
-      const nb = edges.find((e) => e.to === n.id && m.has(e.from)) ?? edges.find((e) => e.from === n.id && m.has(e.to));
-      const anchor = nb ? m.get(nb.to === n.id ? nb.from : nb.to)! : { x: W / 2, y: H / 2 };
+      const nb =
+        edges.find((e) => e.to === n.id && m.has(e.from)) ??
+        edges.find((e) => e.from === n.id && m.has(e.to));
+      const anchor = nb
+        ? m.get(nb.to === n.id ? nb.from : nb.to)!
+        : { x: W / 2, y: H / 2 };
       const a = (i * 2.399) % (Math.PI * 2);
-      m.set(n.id, { x: anchor.x + Math.cos(a) * 40, y: anchor.y + Math.sin(a) * 40, vx: 0, vy: 0 });
+      m.set(n.id, {
+        x: anchor.x + Math.cos(a) * 40,
+        y: anchor.y + Math.sin(a) * 40,
+        vx: 0,
+        vy: 0,
+      });
     });
     let frame = 0;
     let raf = 0;
@@ -92,7 +124,14 @@ export function GraphView({ nodes, edges, selected, onSelect }: { nodes: GNode[]
         const a = m.get(e.from);
         const b = m.get(e.to);
         if (!a || !b) continue;
-        const want = e.type === "HAS_STOP" ? 34 : e.type === "NEXT" ? 30 : e.type === "HAS_DAY" ? 55 : 80;
+        const want =
+          e.type === "HAS_STOP"
+            ? 34
+            : e.type === "NEXT"
+              ? 30
+              : e.type === "HAS_DAY"
+                ? 55
+                : 80;
         const dx = b.x - a.x;
         const dy = b.y - a.y;
         const d = Math.sqrt(dx * dx + dy * dy) || 1;
@@ -125,6 +164,41 @@ export function GraphView({ nodes, edges, selected, onSelect }: { nodes: GNode[]
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
+  // Page scroll stays page scroll: the graph zooms only with Ctrl/⌘ + wheel (or the buttons).
+  useEffect(() => {
+    const el = svg.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault(); // stop the browser's page zoom
+      const r = el.getBoundingClientRect();
+      const sx = ((e.clientX - r.left) / r.width) * W;
+      const sy = ((e.clientY - r.top) / r.height) * H;
+      setView((v) => {
+        const k = Math.min(
+          4,
+          Math.max(0.3, v.k * (e.deltaY < 0 ? 1.12 : 0.89)),
+        );
+        return {
+          k,
+          x: sx - ((sx - v.x) / v.k) * k,
+          y: sy - ((sy - v.y) / v.k) * k,
+        };
+      });
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+  const zoomBy = (f: number) =>
+    setView((v) => {
+      const k = Math.min(4, Math.max(0.3, v.k * f));
+      return {
+        k,
+        x: W / 2 - ((W / 2 - v.x) / v.k) * k,
+        y: H / 2 - ((H / 2 - v.y) / v.k) * k,
+      };
+    });
+
   const toGraph = (clientX: number, clientY: number) => {
     const r = svg.current!.getBoundingClientRect();
     const sx = ((clientX - r.left) / r.width) * W;
@@ -145,97 +219,176 @@ export function GraphView({ nodes, edges, selected, onSelect }: { nodes: GNode[]
   }, [sel, edges]);
 
   return (
-    <svg
-      ref={svg}
-      className="mz-graph"
-      viewBox={`0 0 ${W} ${H}`}
-      role="img"
-      aria-label="Trip graph from Neo4j"
-      onWheel={(e) => {
-        const k = Math.min(4, Math.max(0.3, view.k * (e.deltaY < 0 ? 1.12 : 0.89)));
-        const r = svg.current!.getBoundingClientRect();
-        const sx = ((e.clientX - r.left) / r.width) * W;
-        const sy = ((e.clientY - r.top) / r.height) * H;
-        setView({ k, x: sx - ((sx - view.x) / view.k) * k, y: sy - ((sy - view.y) / view.k) * k });
-      }}
-      onPointerDown={(e) => {
-        if ((e.target as Element).closest("[data-node]")) return;
-        drag.current = { id: null, sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y };
-        (e.currentTarget as Element).setPointerCapture(e.pointerId);
-      }}
-      onPointerMove={(e) => {
-        const d = drag.current;
-        if (!d) return;
-        if (d.id) {
-          const g = toGraph(e.clientX, e.clientY);
-          const q = pos.current.get(d.id);
-          if (q) {
-            q.x = g.x;
-            q.y = g.y;
-            publish();
+    <div className="mz-graph-wrap">
+      <div className="mz-graph-zoom" role="group" aria-label="Zoom">
+        <button
+          type="button"
+          className="mz-btn mz-btn-ghost mz-btn-sm"
+          onClick={() => zoomBy(1.25)}
+          aria-label="Zoom in"
+        >
+          +
+        </button>
+        <button
+          type="button"
+          className="mz-btn mz-btn-ghost mz-btn-sm"
+          onClick={() => zoomBy(0.8)}
+          aria-label="Zoom out"
+        >
+          −
+        </button>
+        <button
+          type="button"
+          className="mz-btn mz-btn-ghost mz-btn-sm"
+          onClick={() => setView({ x: 0, y: 0, k: 1 })}
+          aria-label="Reset view"
+        >
+          Reset
+        </button>
+      </div>
+      <svg
+        ref={svg}
+        className="mz-graph"
+        viewBox={`0 0 ${W} ${H}`}
+        role="img"
+        aria-label="Trip graph from Neo4j"
+        onPointerDown={(e) => {
+          if ((e.target as Element).closest("[data-node]")) return;
+          drag.current = {
+            id: null,
+            sx: e.clientX,
+            sy: e.clientY,
+            vx: view.x,
+            vy: view.y,
+          };
+          (e.currentTarget as Element).setPointerCapture(e.pointerId);
+        }}
+        onPointerMove={(e) => {
+          const d = drag.current;
+          if (!d) return;
+          if (d.id) {
+            const g = toGraph(e.clientX, e.clientY);
+            const q = pos.current.get(d.id);
+            if (q) {
+              q.x = g.x;
+              q.y = g.y;
+              publish();
+            }
+          } else {
+            const r = svg.current!.getBoundingClientRect();
+            setView((v) => ({
+              ...v,
+              x: d.vx + ((e.clientX - d.sx) / r.width) * W,
+              y: d.vy + ((e.clientY - d.sy) / r.height) * H,
+            }));
           }
-        } else {
-          const r = svg.current!.getBoundingClientRect();
-          setView((v) => ({ ...v, x: d.vx + ((e.clientX - d.sx) / r.width) * W, y: d.vy + ((e.clientY - d.sy) / r.height) * H }));
-        }
-      }}
-      onPointerUp={(e) => {
-        const d = drag.current;
-        drag.current = null;
-        if (d && !d.id && Math.abs(e.clientX - d.sx) + Math.abs(e.clientY - d.sy) < 4) onSelect(null);
-      }}
-    >
-      <g transform={`translate(${view.x},${view.y}) scale(${view.k})`}>
-        {edges.map((e, i) => {
-          const a = p(e.from);
-          const b = p(e.to);
-          if (!a || !b) return null;
-          const dim = neighbours && !(neighbours.has(e.from) && neighbours.has(e.to));
-          return (
-            <g key={i} opacity={dim ? 0.12 : 1}>
-              <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className={`mz-graph-edge t-${e.type}`} />
-              {e.type === "NEXT" && e.label && view.k > 1.3 && (
-                <text x={(a.x + b.x) / 2} y={(a.y + b.y) / 2} className="mz-graph-edge-label">
-                  {e.label}
-                </text>
-              )}
-            </g>
-          );
-        })}
-        {nodes.map((n) => {
-          const q = p(n.id);
-          if (!q) return null;
-          const s = STYLE[n.label];
-          const dim = neighbours && !neighbours.has(n.id);
-          return (
-            <g
-              key={n.id}
-              data-node
-              transform={`translate(${q.x},${q.y})`}
-              opacity={dim ? 0.2 : 1}
-              style={{ cursor: "pointer" }}
-              onPointerDown={(e) => {
-                e.stopPropagation();
-                drag.current = { id: n.id, sx: e.clientX, sy: e.clientY, vx: 0, vy: 0 };
-                (e.currentTarget.ownerSVGElement as Element).setPointerCapture(e.pointerId);
-              }}
-              onPointerUp={(e) => {
-                const d = drag.current;
-                if (d?.id === n.id && Math.abs(e.clientX - d.sx) + Math.abs(e.clientY - d.sy) < 4) onSelect(n);
-              }}
-            >
-              <circle r={s.r} fill={s.fill} stroke={sel === n.id ? "#1c2124" : "#fbf8f3"} strokeWidth={sel === n.id ? 3 : 1.5} />
-              {n.props.verified === true && <circle r={s.r + 4} fill="none" stroke="#5e8b72" strokeWidth={2} strokeDasharray="3 2" />}
-              {(n.label !== "Stop" || view.k > 1.1 || sel === n.id) && (
-                <text y={s.r + 11} textAnchor="middle" className="mz-graph-label">
-                  {n.title.length > 22 ? `${n.title.slice(0, 21)}…` : n.title}
-                </text>
-              )}
-            </g>
-          );
-        })}
-      </g>
-    </svg>
+        }}
+        onPointerUp={(e) => {
+          const d = drag.current;
+          drag.current = null;
+          if (
+            d &&
+            !d.id &&
+            Math.abs(e.clientX - d.sx) + Math.abs(e.clientY - d.sy) < 4
+          )
+            onSelect(null);
+        }}
+      >
+        <g transform={`translate(${view.x},${view.y}) scale(${view.k})`}>
+          {edges.map((e, i) => {
+            const a = p(e.from);
+            const b = p(e.to);
+            if (!a || !b) return null;
+            const dim =
+              neighbours && !(neighbours.has(e.from) && neighbours.has(e.to));
+            return (
+              <g key={i} opacity={dim ? 0.12 : 1}>
+                <line
+                  x1={a.x}
+                  y1={a.y}
+                  x2={b.x}
+                  y2={b.y}
+                  className={`mz-graph-edge t-${e.type}`}
+                />
+                {e.type === "NEXT" && e.label && view.k > 1.3 && (
+                  <text
+                    x={(a.x + b.x) / 2}
+                    y={(a.y + b.y) / 2}
+                    className="mz-graph-edge-label"
+                  >
+                    {e.label}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+          {nodes.map((n) => {
+            const q = p(n.id);
+            if (!q) return null;
+            const s = STYLE[n.label];
+            const dim = neighbours && !neighbours.has(n.id);
+            return (
+              <g
+                key={n.id}
+                data-node
+                transform={`translate(${q.x},${q.y})`}
+                opacity={dim ? 0.2 : 1}
+                style={{ cursor: "pointer" }}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  drag.current = {
+                    id: n.id,
+                    sx: e.clientX,
+                    sy: e.clientY,
+                    vx: 0,
+                    vy: 0,
+                  };
+                  (
+                    e.currentTarget.ownerSVGElement as Element
+                  ).setPointerCapture(e.pointerId);
+                }}
+                onPointerUp={(e) => {
+                  const d = drag.current;
+                  if (
+                    d?.id === n.id &&
+                    Math.abs(e.clientX - d.sx) + Math.abs(e.clientY - d.sy) < 4
+                  )
+                    onSelect(n);
+                }}
+              >
+                <circle
+                  r={s.r}
+                  fill={s.fill}
+                  stroke={sel === n.id ? "#1c2124" : "#fbf8f3"}
+                  strokeWidth={sel === n.id ? 3 : 1.5}
+                />
+                {n.props.verified === true && (
+                  <circle
+                    r={s.r + 4}
+                    fill="none"
+                    stroke="#5e8b72"
+                    strokeWidth={2}
+                    strokeDasharray="3 2"
+                  />
+                )}
+                {(n.label !== "Stop" || view.k > 1.1 || sel === n.id) && (
+                  <text
+                    y={s.r + 11}
+                    textAnchor="middle"
+                    className="mz-graph-label"
+                  >
+                    {n.title.length > 22 ? `${n.title.slice(0, 21)}…` : n.title}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+        </g>
+      </svg>
+      <p className="mz-tiny mz-muted mz-graph-hint">
+        Ctrl/⌘ + scroll or the buttons to zoom · drag to pan · click a node
+      </p>
+    </div>
   );
 }
 

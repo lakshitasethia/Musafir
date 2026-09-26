@@ -62,7 +62,7 @@ export function TwinMap({ points, lines = [], rain = [], height = 360 }: { point
     if (!box.current || failed) return;
     let map: MapLibreMap;
     try {
-      map = new MapLibreMap({ container: box.current, style: STYLE, center: [78, 22], zoom: 3 });
+      map = new MapLibreMap({ container: box.current, style: STYLE, center: [78, 22], zoom: 3, cooperativeGestures: true });
     } catch (e) {
       queueMicrotask(() => setFailed((e as Error).message || "the map couldn't start"));
       return;
