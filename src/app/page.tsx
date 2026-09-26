@@ -203,6 +203,17 @@ export default function FlywardExperience() {
             {/* Right Contact Button */}
             <div className="nav_contact-wrp">
               <a
+                href="/login"
+                className="button is-secondary is-nav"
+                style={{
+                  borderColor: isDarkNav ? "#ffffff" : "#3d2d20",
+                  color: isDarkNav ? "#ffffff" : "#3d2d20",
+                  marginRight: "0.5rem",
+                }}
+              >
+                LOG IN
+              </a>
+              <a
                 href="#contact"
                 className="button is-secondary is-nav"
                 style={{
