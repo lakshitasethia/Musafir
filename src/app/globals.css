@@ -98,6 +98,7 @@ a {
   z-index: 999;
   background-color: transparent;
   pointer-events: none;
+  transition: color 0.3s ease;
 }
 
 .padding-global {
@@ -333,6 +334,7 @@ a {
   transform-origin: 50%;
   z-index: 9;
   pointer-events: none;
+  overflow: hidden;
 }
 
 .hero_mask-inner {
@@ -460,31 +462,35 @@ a {
   transform: translateY(-1px);
 }
 
-/* PHASE 2 (ON SCROLL REVEAL) */
+/* PHASE 2 (ON SCROLL REVEAL - MATCHING USER SCREENSHOT 2) */
 .hero_scrollable-bottom {
   position: relative;
   width: 90%;
+  max-width: 78rem;
   height: 100vh;
   color: var(--white);
   display: flex;
   flex-flow: column;
   justify-content: center;
   align-items: stretch;
-  grid-column-gap: 3rem;
-  grid-row-gap: 3rem;
+  grid-column-gap: 2.5rem;
+  grid-row-gap: 2.5rem;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
   pointer-events: auto;
 }
 
 .heading-style-h1 {
   font-family: Apris, Times New Roman, serif;
-  font-size: 5rem;
+  font-size: 4.8rem;
   font-weight: 400;
-  line-height: 0.9;
+  line-height: 0.92;
   letter-spacing: 0.02em;
   text-transform: uppercase;
   color: var(--white);
   max-width: 60rem;
   margin: 0;
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.35);
 }
 
 .hero_scrollable-bottom-text {
@@ -493,9 +499,245 @@ a {
   font-family: 'Founders Grotesk Text', Arial, sans-serif;
   font-size: 1.25rem;
   font-weight: 300;
-  line-height: 1.2;
+  line-height: 1.35;
   letter-spacing: -0.02em;
   color: var(--white);
+  text-shadow: 0 1px 16px rgba(0, 0, 0, 0.3);
+}
+
+@media screen and (max-width: 991px) {
+  .hero_scrollable-bottom-text {
+    width: 100%;
+    margin-left: 0;
+  }
+  .heading-style-h1 {
+    font-size: 3rem;
+  }
+  .heading-style-h3 {
+    font-size: 2.35rem;
+  }
+}
+
+/* ========================================================
+   SECTION HOME-TRANSITION ("TRAVEL DESIGNED AROUND YOU")
+   MATCHING USER SCREENSHOT 3 SPECIFICALLY
+   ======================================================== */
+.section_home-transition {
+  z-index: 3;
+  justify-content: center;
+  align-items: center;
+  display: flex;
+  position: relative;
+  width: 100%;
+  overflow: clip;
+}
+
+.section_home-transition.is-static {
+  pointer-events: none;
+  margin-top: -12rem;
+  margin-bottom: -12rem;
+}
+
+.home-transition_content {
+  text-align: center;
+  flex-flow: column;
+  justify-content: center;
+  align-items: center;
+  display: flex;
+  position: relative;
+  z-index: 10;
+}
+
+.heading-style-h1.is-stroke-white {
+  color: var(--transparent);
+  -webkit-text-stroke-width: 1.2px;
+  -webkit-text-stroke-color: #d2d5d8;
+  font-family: Apris, Times New Roman, serif;
+  font-size: 5rem;
+  font-weight: 400;
+  line-height: 0.95;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.home-transition_img-right {
+  z-index: 9;
+  width: 40rem;
+  height: auto;
+  position: absolute;
+  top: -10rem;
+  left: auto;
+  right: 0%;
+  pointer-events: none;
+  opacity: 0.9;
+}
+
+.home-transition_bg-static {
+  z-index: 0;
+  object-fit: cover;
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  inset: 0%;
+}
+
+.is-relative-11 {
+  z-index: 11;
+  position: relative;
+}
+
+.is-xxl {
+  padding-top: 13rem;
+  padding-bottom: 13rem;
+}
+
+.container-max {
+  width: 100%;
+  max-width: none;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* ========================================================
+   SECTION TRAVEL (PRIVATE & CORPORATE TRAVEL CARDS)
+   ======================================================== */
+.section_travel {
+  position: relative;
+  z-index: 4;
+  width: 100%;
+  background-color: var(--white);
+  padding-top: 12rem;
+}
+
+.travel_grid-wrapper {
+  z-index: 1;
+  border: 0.5rem solid var(--white);
+  position: relative;
+}
+
+.travel_grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-column-gap: 0.5rem;
+  grid-row-gap: 0.5rem;
+  width: 100%;
+}
+
+@media screen and (max-width: 991px) {
+  .travel_grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.travel_grid-item {
+  position: relative;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1.16;
+  display: flex;
+  flex-flow: column;
+  justify-content: flex-end;
+  align-items: flex-start;
+  overflow: hidden;
+}
+
+.travel_grid-item-img {
+  position: absolute;
+  inset: 0%;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+  transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.travel_grid-item:hover .travel_grid-item-img {
+  transform: scale(1.04);
+}
+
+.travel_grid-item-bottom {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  padding: 4.375rem 2.2rem 8rem 2.5rem;
+  background-image: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.95));
+  display: flex;
+  flex-flow: column;
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: 1.25rem;
+}
+
+.button.is-secondary.is-blur {
+  border: 1px solid var(--white);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  color: var(--white);
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  padding: 0.55rem 1.35rem;
+  border-radius: 100rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  gap: 0.5rem;
+  transition: opacity 0.2s ease, background-color 0.2s ease;
+  font-family: 'Founders Grotesk Text', Arial, sans-serif;
+}
+
+.button.is-secondary.is-blur:hover {
+  opacity: 0.7;
+}
+
+.button-icon {
+  width: 0.85rem;
+  height: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.travel_grid-item-bottom-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  width: 100%;
+  gap: 1.5rem;
+  position: relative;
+  z-index: 1;
+  color: var(--white);
+}
+
+.travel_grid-item-bottom-line h3 {
+  font-family: Apris, Times New Roman, serif;
+  font-size: 2.85rem;
+  font-weight: 400;
+  line-height: 0.92;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  margin: 0;
+  color: var(--white);
+}
+
+.travel_grid-item-bottom-text {
+  flex: none;
+  width: 17rem;
+  font-family: 'Founders Grotesk Text', Arial, sans-serif;
+  font-size: 1.15rem;
+  font-weight: 300;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.travel_bottom-bg {
+  position: absolute;
+  inset: auto 0% 0%;
+  width: 100%;
+  height: auto;
+  z-index: 9;
+  object-fit: cover;
+  pointer-events: none;
 }
 
 /* COOKIE PRIVACY BADGE */

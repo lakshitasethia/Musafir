@@ -6,14 +6,15 @@ import { HeroMask } from "./components/HeroMask";
 import { GridSvg } from "./components/GridSvg";
 import { StarSvg } from "./components/StarSvg";
 import { LogoSvg } from "./components/LogoSvg";
+import { TransitionGridSvg } from "./components/TransitionGridSvg";
 
-export default function FlywardHero() {
+export default function FlywardExperience() {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomImgRef = useRef<HTMLImageElement>(null);
   const topImgRef = useRef<HTMLImageElement>(null);
   const maskInnerRef = useRef<HTMLDivElement>(null);
   const topTextRef = useRef<HTMLDivElement>(null);
-  const [navDark, setNavDark] = useState(false);
+  const [navTheme, setNavTheme] = useState<"light" | "dark">("light");
 
   // Mouse position state with smooth lerping for 2.5D Parallax
   const mouseRef = useRef({ x: 0, y: 0, targetX: 0, targetY: 0 });
@@ -30,7 +31,6 @@ export default function FlywardHero() {
     // 2. Mouse Move handler for 2.5D Parallax
     const handleMouseMove = (e: MouseEvent) => {
       const { innerWidth, innerHeight } = window;
-      // Normalized between -1 and 1
       const normalizedX = (e.clientX / innerWidth) * 2 - 1;
       const normalizedY = (e.clientY / innerHeight) * 2 - 1;
 
@@ -54,22 +54,24 @@ export default function FlywardHero() {
       // Scroll progress computation
       const scrollY = window.scrollY || window.pageYOffset;
       const viewportHeight = window.innerHeight;
-      // Progress over first 100vh
-      const scrollProgress = Math.min(Math.max(scrollY / viewportHeight, 0), 1);
+
+      // Hero mask zoom progression (over the first 85vh of scroll)
+      const zoomProgress = Math.min(Math.max(scrollY / (viewportHeight * 0.85), 0), 1);
 
       // Webflow Action a-8: mask width expands from 100vw to 750vw
-      const maskWidth = 100 + scrollProgress * 650; // 100vw -> 750vw
-      // Background scales from 1.2 to 1.0
-      const bgScale = 1.2 - scrollProgress * 0.2;
+      const maskWidth = 100 + zoomProgress * 650; // 100vw -> 750vw
+      const bgScale = 1.2 - zoomProgress * 0.2; // 1.2 -> 1.0
 
       // Apply to mask inner
       if (maskInnerRef.current) {
         maskInnerRef.current.style.width = `${maskWidth}vw`;
+        // Hide mask completely when fully zoomed out to prevent any bottom clipping
+        maskInnerRef.current.style.opacity = zoomProgress >= 0.99 ? "0" : "1";
       }
 
       // Parallax values for .is-bottom: X: -3rem to +3rem, Y: -3.5rem to +3.5rem
       if (bottomImgRef.current) {
-        const moveX = mx * 35; // pixels
+        const moveX = mx * 35;
         const moveY = my * 40;
         bottomImgRef.current.style.transform = `scale(${bgScale}) translate3d(${moveX}px, ${moveY}px, 0)`;
       }
@@ -83,15 +85,17 @@ export default function FlywardHero() {
 
       // Fade top hero text out as mask zooms
       if (topTextRef.current) {
-        const textOpacity = Math.max(1 - scrollProgress * 1.5, 0);
+        const textOpacity = Math.max(1 - zoomProgress * 1.4, 0);
         topTextRef.current.style.opacity = `${textOpacity}`;
       }
 
-      // Switch navbar contrast based on scroll
-      if (scrollProgress > 0.4) {
-        setNavDark(true);
+      // Dynamic Navbar theme adaptation:
+      // When over the sunset ocean or dark transition: white text
+      // When at top initial hero: dark umber (#3d2d20)
+      if (scrollY > viewportHeight * 0.4 && scrollY < viewportHeight * 2.6) {
+        setNavTheme("dark");
       } else {
-        setNavDark(false);
+        setNavTheme("light");
       }
 
       animationFrameId = requestAnimationFrame(raf);
@@ -106,13 +110,15 @@ export default function FlywardHero() {
     };
   }, []);
 
+  const isDarkNav = navTheme === "dark";
+
   return (
     <div className="page-wrapper">
       {/* 1. TOP NAVIGATION */}
       <header
         className="nav_component"
         style={{
-          color: navDark ? "#ffffff" : "#3d2d20",
+          color: isDarkNav ? "#ffffff" : "#3d2d20",
         }}
       >
         <div className="padding-global">
@@ -148,8 +154,8 @@ export default function FlywardHero() {
                 href="#contact"
                 className="button is-secondary is-nav"
                 style={{
-                  borderColor: navDark ? "#ffffff" : "#3d2d20",
-                  color: navDark ? "#ffffff" : "#3d2d20",
+                  borderColor: isDarkNav ? "#ffffff" : "#3d2d20",
+                  color: isDarkNav ? "#ffffff" : "#3d2d20",
                 }}
               >
                 CONTACT
@@ -159,7 +165,7 @@ export default function FlywardHero() {
         </div>
       </header>
 
-      {/* 2. HERO SECTION */}
+      {/* 2. SECTION HERO (200vh STICKY SCROLL WITH ORGANIC CUTOUT MASK) */}
       <main className="section_hero" ref={containerRef}>
         <div className="hero_content-wrapper">
           {/* Sticky Viewport Frame */}
@@ -209,7 +215,7 @@ export default function FlywardHero() {
 
           {/* Scrollable Narrative Typography Layer as sibling of hero_sticky */}
           <div className="hero_scrollable">
-            {/* Phase 1: Center Cutout Typography */}
+            {/* Phase 1: Center Cutout Typography (Screenshot 1) */}
             <div className="hero_scrollable-top" ref={topTextRef}>
               <h1 className="heading-style-h3">
                 WITH YOU AT
@@ -236,31 +242,167 @@ export default function FlywardHero() {
               </a>
             </div>
 
-            {/* Phase 2: Full Screen Revealed Narrative */}
+            {/* Phase 2: Full Screen Revealed Narrative (Screenshot 2) */}
             <div id="discover" className="hero_scrollable-bottom">
               <h2 className="heading-style-h1">
-                We make complex travel simple
+                WE MAKE COMPLEX
+                <br />
+                TRAVEL SIMPLE
               </h2>
               <div className="hero_scrollable-bottom-text">
-                <div>
+                <p>
                   We don’t just arrange flights and hotels.
                   <br />
                   <br />
-                  We manage the entire journey — before, during, and after travel —
-                  anticipating needs, resolving issues proactively, and ensuring
-                  every trip runs smoothly.
+                  We manage the entire journey — before, during, and after travel
+                  — anticipating needs, resolving issues proactively, and
+                  ensuring every trip runs smoothly.
                   <br />
                   <br />
                   From frequent business travel to once-in-a-lifetime journeys,
                   Flyward operates as an extension of your world.
-                </div>
+                </p>
               </div>
             </div>
           </div>
         </div>
       </main>
 
-      {/* 3. BOTTOM-LEFT PRIVACY BADGE (As seen in the screenshot) */}
+      {/* 3. SECTION HOME-TRANSITION ("TRAVEL DESIGNED AROUND YOU" - SCREENSHOT 3) */}
+      <section className="section_home-transition is-static">
+        <div className="padding-global padding-section-large is-relative-11 is-xxl">
+          <div className="container-max">
+            <div className="home-transition_content">
+              <h2 className="heading-style-h1 is-mobile-48 is-stroke-white">
+                TRAVEL DESIGNED <br />
+                AROUND YOU
+              </h2>
+            </div>
+          </div>
+        </div>
+
+        {/* Coordinate Chart Grid Overlay */}
+        <div className="grid">
+          <TransitionGridSvg />
+        </div>
+
+        {/* Right Island Vector Line Chart */}
+        <img
+          src="/images/transition-map.svg"
+          alt="Island Nautical Map Chart"
+          className="home-transition_img-right"
+        />
+
+        {/* Dark Silhouette Organic Mountain Ridge Cutting Across Sunset */}
+        <img
+          src="/images/transition-bg-2.avif"
+          alt="Dark Silhouette Mountain Horizon"
+          className="home-transition_bg-static"
+        />
+      </section>
+
+      {/* 4. SECTION TRAVEL (PRIVATE & CORPORATE CARDS) */}
+      <section className="section_travel">
+        <div className="padding-global padding-0">
+          <div className="container-max">
+            <div className="travel_grid-wrapper">
+              <div className="travel_grid">
+                {/* Card 1: Private Travel */}
+                <div className="travel_grid-item">
+                  <img
+                    src="/images/grid1.avif"
+                    alt="Private Travel"
+                    className="travel_grid-item-img"
+                  />
+                  <div className="travel_grid-item-bottom">
+                    <a
+                      href="#private"
+                      className="button is-secondary is-blur"
+                    >
+                      <div>EXPLORE</div>
+                      <div className="button-icon">
+                        <svg
+                          width="100%"
+                          height="100%"
+                          viewBox="0 0 16 16"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M13.5026 7.05623L7.05882 13.5L6 12.4412L12.4438 5.9974H6.76429V4.5H15V12.7357H13.5026V7.05623Z"
+                            fill="white"
+                          />
+                        </svg>
+                      </div>
+                    </a>
+                    <div className="travel_grid-item-bottom-line">
+                      <h3>
+                        Private <br />
+                        travel
+                      </h3>
+                      <div className="travel_grid-item-bottom-text">
+                        Thoughtfully planned travel for individuals and
+                        families. Every detail handled with care, discretion,
+                        and flexibility.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card 2: Corporate Travel */}
+                <div className="travel_grid-item">
+                  <img
+                    src="/images/grid2.avif"
+                    alt="Corporate Travel"
+                    className="travel_grid-item-img"
+                  />
+                  <div className="travel_grid-item-bottom">
+                    <a
+                      href="#corporate"
+                      className="button is-secondary is-blur"
+                    >
+                      <div>EXPLORE</div>
+                      <div className="button-icon">
+                        <svg
+                          width="100%"
+                          height="100%"
+                          viewBox="0 0 16 16"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M13.5026 7.05623L7.05882 13.5L6 12.4412L12.4438 5.9974H6.76429V4.5H15V12.7357H13.5026V7.05623Z"
+                            fill="white"
+                          />
+                        </svg>
+                      </div>
+                    </a>
+                    <div className="travel_grid-item-bottom-line">
+                      <h3>
+                        Corporate <br />
+                        travel
+                      </h3>
+                      <div className="travel_grid-item-bottom-text">
+                        Efficient, reliable travel management for businesses
+                        and executives who need things done right.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Silhouette Transition Curve */}
+        <img
+          src="/images/remove1-1.avif"
+          alt=""
+          className="travel_bottom-bg"
+        />
+      </section>
+
+      {/* 5. BOTTOM-LEFT PRIVACY BADGE (As seen in the screenshots) */}
       <div
         className="cookie_badge"
         title="Privacy Preferences"
