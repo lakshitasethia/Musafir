@@ -236,6 +236,8 @@ async function corpus() {
   const kinds = [...new Set(all.map((q) => q.kind))];
   for (const k of kinds) all.filter((q) => q.kind === k).forEach((q, i) => ((i + 1) % 5 === 0 ? held : train).push(q));
   writeFileSync(path.join(DIR, "corpus.jsonl"), train.map((q) => JSON.stringify({ question: q.question, answer: q.answer })).join("\n") + "\n");
+  // Nugen's developer edition documents plain-text uploads; the same records as Q/A text.
+  writeFileSync(path.join(DIR, "corpus.txt"), train.map((q) => `Q: ${q.question}\nA: ${q.answer}`).join("\n\n") + "\n");
   writeFileSync(path.join(DIR, "benchmark.json"), JSON.stringify(held.map((q, i) => ({ sample_num: i + 1, instruction: q.question, response: q.answer })), null, 2));
   const count = (xs: QA[]) => Object.fromEntries(kinds.map((k) => [k, xs.filter((q) => q.kind === k).length]));
   console.log(`corpus: ${train.length} training records ${JSON.stringify(count(train))}`);
@@ -245,10 +247,12 @@ async function corpus() {
 
 // ── Nugen workflow ───────────────────────────────────────────────────
 async function upload() {
-  const f = path.join(DIR, "corpus.jsonl");
+  // Default: plain text (what the developer edition documents). NUGEN_UPLOAD_FORMAT=jsonl → the cookbook's JSONL.
+  const jsonl = process.env.NUGEN_UPLOAD_FORMAT === "jsonl";
+  const f = path.join(DIR, jsonl ? "corpus.jsonl" : "corpus.txt");
   if (!existsSync(f)) throw new Error("run the corpus step first");
   const form = new FormData();
-  form.append("files", new Blob([readFileSync(f)], { type: "application/json" }), "musafir-weather-ops.jsonl");
+  form.append("files", new Blob([readFileSync(f)], { type: jsonl ? "application/json" : "text/plain" }), jsonl ? "musafir-weather-ops.jsonl" : "musafir-weather-ops.txt");
   form.append("categories", "travel-weather-operations");
   form.append("names", "Musafir weather & disruption operations");
   const { document_ids } = await api<{ document_ids: string[] }>("POST", "/api/v3/documents/create", undefined, form);
