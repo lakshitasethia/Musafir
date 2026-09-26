@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { interestFit, matchesInterest, readBrief } from "./interests.ts";
+import { interestFit, keywordFit, matchesInterest, readBrief } from "./interests.ts";
 
 test("interests match OSM kinds and names", () => {
   assert.ok(matchesInterest("history", { kind: "historic=fort", name: "Amber Fort" }));
@@ -24,6 +24,19 @@ test("brief reading: pace, budget, interests, avoid, party", () => {
   assert.ok(r.interests.includes("street-food"));
   assert.ok(r.avoid.includes("nightlife"));
   assert.equal(r.party, "couple");
+});
+
+test("free-form keywords are matched, not a fixed list", () => {
+  const r = readBrief("We love anime, jazz bars and tea ceremony, also history");
+  assert.deepEqual(r.keywords, ["anime", "jazz bars", "tea ceremony"]);
+  assert.ok(r.interests.includes("history"));
+});
+
+test("keyword fit matches names and OSM types, plural-tolerant", () => {
+  assert.equal(keywordFit({ kind: "shop=anime", name: "Animate" }, ["anime"]), 1);
+  assert.equal(keywordFit({ kind: "amenity=bar", name: "Jazz Club Blue" }, ["jazz"]), 1);
+  assert.equal(keywordFit({ kind: "historic=temple", name: "Kōdai-ji Temple" }, ["temples"]), 1);
+  assert.equal(keywordFit({ kind: "amenity=cafe", name: "Blue Bottle" }, ["anime"]), 0);
 });
 
 test("brief reading leaves unknowns alone", () => {

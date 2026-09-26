@@ -79,6 +79,8 @@ export const VibeConfigSchema = z.object({
   /** Chips from a fixed vocabulary (lib/musafir/interests.ts); the planner scores places against them. */
   interests: z.array(z.enum(INTERESTS)).max(8).optional(),
   avoid: z.array(z.enum(INTERESTS)).max(6).optional(),
+  /** Anything else the traveller cares about, in their own words ("anime", "jazz bars", "tea ceremony"). Matched against real places. */
+  keywords: z.array(z.string().trim().min(2).max(30)).max(10).optional(),
   /** Places the traveller insists on; the planner looks each one up and schedules it first. */
   mustSee: z.array(z.string().trim().min(2).max(80)).max(6).optional(),
   party: z.enum(PARTIES).optional(),

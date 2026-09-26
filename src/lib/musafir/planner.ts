@@ -15,7 +15,7 @@
  */
 import { estimateLeg, haversineMeters, type LegEstimate } from "./geo.ts";
 import { osmDietChecker, type DietChecker, type DietStatus } from "./dining.ts";
-import { interestFit } from "./interests.ts";
+import { interestFit, keywordFit } from "./interests.ts";
 import { openStatus } from "./opening-hours.ts";
 import type { ItineraryNode, NodeCategory, VibeConfig } from "./schemas.ts";
 import { fromMinutes, MINUTES_PER_DAY } from "./time.ts";
@@ -87,13 +87,14 @@ export function scoreCandidate(c: PlaceCandidate, vibe: VibeConfig, center: { la
   const closeness = 1 - Math.min(1, haversineMeters(center, c) / Math.max(1, radiusMeters));
   if (c.category === "DINING") {
     const casual = CASUAL_FOOD.test(c.kind);
-    return 0.4 * closeness + 0.6 * (casual ? 1 - vibe.budget : vibe.budget) + 0.3 * interestFit(c, vibe.interests ?? [], vibe.avoid ?? []) - (c.generic ? 0.15 : 0);
+    return 0.4 * closeness + 0.6 * (casual ? 1 - vibe.budget : vibe.budget) + 0.3 * Math.max(interestFit(c, vibe.interests ?? [], vibe.avoid ?? []), keywordFit(c, vibe.keywords ?? [])) - (c.generic ? 0.15 : 0);
   }
   const iconic = ICONIC_KINDS.test(c.kind);
   const local = LOCAL_KINDS.test(c.kind);
   const fit = iconic ? 1 - vibe.culturalDepth : local ? vibe.culturalDepth : 0.5;
   // What the traveller said they like (chips / brief) outweighs the generic iconic-vs-local fit.
-  const likes = interestFit(c, vibe.interests ?? [], vibe.avoid ?? []);
+  const chips = interestFit(c, vibe.interests ?? [], vibe.avoid ?? []);
+  const likes = chips < 0 ? chips : Math.max(chips, keywordFit(c, vibe.keywords ?? []));
   // Well-known places matter more to an "iconic" traveller than to a "local" one.
   const known = Math.min(1, (c.notability ?? 0) / 25) * (1 - vibe.culturalDepth);
   return 0.3 * closeness + 0.45 * fit + 0.4 * likes + 0.4 * known + (c.category === "NATURE" ? 0.1 : 0) - (c.generic ? 0.15 : 0);

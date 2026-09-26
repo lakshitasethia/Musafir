@@ -65,10 +65,27 @@ export function interestFit(place: { kind: string; name: string }, likes: readon
   return Math.min(1, hits / Math.min(2, likes.length));
 }
 
+const fold = (s: string) => s.toLowerCase().normalize("NFKD").replace(/\p{M}/gu, "").replace(/[_=:]+/g, " ");
+
+/** 1 when any of the traveller's own keywords appears in the place's name or OSM type ("jazz" ~ "Jazz Club Blue", "anime" ~ "shop=anime"). */
+export function keywordFit(place: { kind: string; name: string }, keywords: readonly string[]): number {
+  if (keywords.length === 0) return 0;
+  const hay = ` ${fold(place.name)} ${fold(place.kind)} `;
+  return keywords.some((k) => {
+    const w = fold(k).trim();
+    // Singular form too, so "temples" finds "Temple".
+    return w.length >= 2 && (hay.includes(w) || (w.endsWith("s") && w.length > 3 && hay.includes(w.slice(0, -1))));
+  })
+    ? 1
+    : 0;
+}
+
 export interface BriefReading {
   vibe: Partial<Faders>;
   interests: Interest[];
   avoid: Interest[];
+  /** Free-form wants that aren't one of the chips, in the traveller's words. */
+  keywords: string[];
   party?: Party;
 }
 
@@ -129,5 +146,20 @@ export function readBrief(text: string): BriefReading {
           : /\b(group|team|colleagues|office)\b/i.test(t)
             ? "group"
             : undefined;
-  return { vibe, interests: interests.slice(0, 6), avoid: avoid.slice(0, 4), party };
+  // Free-form wants: "love X, Y and Z", "into X", "want to see X" — minus words the chips already cover.
+  const keywords: string[] = [];
+  for (const m of t.matchAll(/\b(?:love|loves|like|likes|into|enjoy|enjoys|interested in|want to (?:see|try|do)|looking for)\s+([^.;!?]+)/gi)) {
+    for (const part of m[1].split(/,|\band\b|&|\bor\b/i)) {
+      const phrase = part
+        .replace(/\b(the|a|an|also|some|lots of|really|very|much|good|great|local)\b/gi, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+      if (phrase.length < 3 || phrase.split(" ").length > 3) continue;
+      // A phrase that is only a chip word ("history", "museums") is already covered by the chips.
+      if (INTERESTS.some((i) => WORDS[i].exec(phrase)?.[0].length === phrase.length)) continue;
+      if (!keywords.includes(phrase)) keywords.push(phrase);
+    }
+  }
+  return { vibe, interests: interests.slice(0, 6), avoid: avoid.slice(0, 4), keywords: keywords.slice(0, 8), party };
 }

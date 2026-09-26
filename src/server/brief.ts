@@ -17,6 +17,7 @@ const BriefSchema = z.object({
   interests: z.array(z.enum(INTERESTS)).max(8).default([]),
   avoid: z.array(z.enum(INTERESTS)).max(6).default([]),
   mustSee: z.array(z.string().trim().min(2).max(80)).max(6).default([]),
+  keywords: z.array(z.string().trim().min(2).max(30)).max(10).default([]),
   party: z.enum(PARTIES).nullable().optional(),
   partySize: z.number().int().min(1).max(30).nullable().optional(),
 });
@@ -42,6 +43,7 @@ export async function interpretBrief(text: string): Promise<BriefResult> {
       "budget (0 shoestring, 1 luxury), culturalDepth (0 iconic landmarks, 1 local/offbeat), circadian (0 early riser, 1 night owl).",
       `interests and avoid: only values from ${JSON.stringify(INTERESTS)}.`,
       "mustSee: only specific places the text names verbatim (e.g. \"Taj Mahal\"); never suggest your own.",
+      "keywords: other specific things they want that the interest list doesn't cover, 1-3 words each, copied from the text (e.g. \"anime\", \"jazz bars\").",
       `party: one of ${JSON.stringify(PARTIES)} if stated; partySize if a number of people is stated.`,
     ].join(" "),
     user: brief,
@@ -63,6 +65,7 @@ export async function interpretBrief(text: string): Promise<BriefResult> {
     avoid: [...new Set(v.avoid)].filter((a) => !v.interests.includes(a)),
     // Guard against invented places: keep only names the traveller actually wrote.
     mustSee: [...new Set(v.mustSee)].filter((m) => lower.includes(m.toLowerCase())),
+    keywords: [...new Set([...v.keywords.map((k) => k.toLowerCase()), ...fallback.keywords])].filter((k) => lower.includes(k)).slice(0, 10),
     party: (v.party ?? fallback.party) as Party | undefined,
     partySize: v.partySize ?? undefined,
     via: r.via,

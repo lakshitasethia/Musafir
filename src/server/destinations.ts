@@ -104,7 +104,9 @@ export async function resolveDestination(input: string): Promise<ResolvedDestina
       if (scale === "place" || scale === "continent") return { ...base, cities: [] };
       const fromVoyage = r.wv?.value ? await wikivoyageCities(r.wv.value).catch(() => []) : [];
       if (fromVoyage.length >= 2) return { ...base, cities: fromVoyage, citySource: "wikivoyage" as const };
-      const fromData = await wikidataCities(hit.id, scale).catch(() => []);
+      // Small or obscure areas: relax the fame bar before giving up on a city list.
+      let fromData = await wikidataCities(hit.id, scale).catch(() => []);
+      if (fromData.length < 2) fromData = await wikidataCities(hit.id, scale, 3).catch(() => fromData);
       return { ...base, cities: fromData, citySource: fromData.length ? ("wikidata" as const) : undefined };
     }
     return null;
@@ -217,14 +219,14 @@ function cleanBlurb(raw: string): string | undefined {
   return t ? t.slice(0, 160) : undefined;
 }
 
-async function wikidataCities(qid: string, scale: "region" | "country"): Promise<CityOption[]> {
+async function wikidataCities(qid: string, scale: "region" | "country", minEditions = 15): Promise<CityOption[]> {
   // Region membership is P131 up to 3 levels deep (unbounded P131+ times out on big states).
   const within = scale === "country" ? `?city wdt:P17 wd:${qid} .` : `?city wdt:P131/wdt:P131?/wdt:P131? wd:${qid} .`;
   const rows = await sparql(`SELECT DISTINCT ?city ?cityLabel ?loc ?sl WHERE {
   VALUES ?cls { ${CITY_CLASSES.map((c) => `wd:${c}`).join(" ")} }
   ?city wdt:P31 ?cls ; wdt:P625 ?loc ; wikibase:sitelinks ?sl .
   ${within}
-  FILTER(?sl >= 15)
+  FILTER(?sl >= ${minEditions})
   SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
 } ORDER BY DESC(?sl) LIMIT 30`);
   const seen = new Set<string>();

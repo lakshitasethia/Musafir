@@ -376,13 +376,16 @@ async function nominatimCandidates(center: { lat: number; lng: number }, purpose
  * mirror fallback, then Nominatim keyword search inside the same radius when
  * every Overpass instance is unreachable (some networks block them).
  */
+const MAX_RADIUS_M = 25_000;
+
 export async function nearbyCandidates(
   center: { lat: number; lng: number },
   purpose: CandidatePurpose,
   radiusMeters = 800,
 ): Promise<VenueCandidate[]> {
   if (PURPOSE_FILTERS[purpose].length === 0) return [];
-  const r = Math.round(Math.min(Math.max(radiusMeters, 100), 3000));
+  // Up to 25 km: rural places, islands and valleys need a wider net than a city block.
+  const r = Math.round(Math.min(Math.max(radiusMeters, 100), MAX_RADIUS_M));
   // Cache by ~110 m grid cell so nearby requests share results.
   const key = `venues:v3:${purpose}:${center.lat.toFixed(3)}:${center.lng.toFixed(3)}:${r}`;
   return cached(key, async () => {
@@ -392,9 +395,10 @@ export async function nearbyCandidates(
     } catch (overpassError) {
       // Landmark-type lookups go to Wikidata before hammering Nominatim with keyword sweeps
       // (Nominatim's policy discourages bulk POI queries); food/hotels keep Nominatim's better coverage.
+      let wiki: VenueCandidate[] = [];
       if (LANDMARK_PURPOSES.has(purpose)) {
         try {
-          const wiki = await wikidataCandidates(center, purpose, r);
+          wiki = await wikidataCandidates(center, purpose, r);
           if (wiki.length >= MIN_USEFUL_RESULTS) return wiki.sort((a, b) => a.distanceMeters - b.distanceMeters);
         } catch {
           /* fall through to Nominatim */
@@ -402,7 +406,10 @@ export async function nearbyCandidates(
       }
       try {
         list = await nominatimCandidates(center, purpose, r);
+        // A thin Wikidata answer still beats an even thinner keyword sweep.
+        if (list.length < wiki.length) list = wiki;
       } catch (nominatimError) {
+        if (wiki.length) return wiki.sort((a, b) => a.distanceMeters - b.distanceMeters);
         try {
           list = await photonCandidates(center, purpose, r);
         } catch (photonError) {

@@ -33,6 +33,9 @@ import { read, write, type TripRecord } from "./store.ts";
 import { rainWindows } from "./weather.ts";
 
 const SEARCH_RADIUS_M = 3000;
+/** When a place is small or rural, widen the search until there's enough to fill days. */
+const WIDER_RADII_M = [10_000, 25_000];
+const ENOUGH_CANDIDATES = 12;
 const PURPOSES: CandidatePurpose[] = ["CULTURE", "NATURE", "LEISURE", "DINING"];
 const CURATOR_LIST_SIZE = 24;
 /** A must-see within this distance of a chosen city is visited from that city. */
@@ -98,7 +101,7 @@ async function findMustSees(names: readonly string[], near?: { lat: number; lng:
   for (const name of names) {
     // Landmarks: Wikipedia's relevance order first (English titles), then the map search.
     // First hit that isn't a station ("Fushimi Inari" → the shrine, not Fushimi-Inari Station).
-    const notStation = (h: { category: string; name: string }) => h.category !== "TRANSIT" && !/station/i.test(h.name);
+    const notStation = (h: { category: string; name: string }) => h.category !== "TRANSIT" && !/\bstation\b/i.test(h.name);
     const hit =
       (await openKnowledgeSearch(name).catch(() => [])).find(notStation) ?? (await searchPlaces(name, near).catch(() => [])).find(notStation);
     if (!hit) {
@@ -120,11 +123,11 @@ async function findMustSees(names: readonly string[], near?: { lat: number; lng:
   return { found, missing };
 }
 
-async function gather(center: { lat: number; lng: number }, failures: string[]): Promise<PlaceCandidate[]> {
+async function gather(center: { lat: number; lng: number }, failures: string[], radius = SEARCH_RADIUS_M): Promise<PlaceCandidate[]> {
   const out: PlaceCandidate[] = [];
   for (const purpose of PURPOSES) {
     try {
-      for (const c of await nearbyCandidates(center, purpose, SEARCH_RADIUS_M)) {
+      for (const c of await nearbyCandidates(center, purpose, radius)) {
         const t = englishTitle(c);
         out.push({
           sourceId: c.osmId,
@@ -253,13 +256,31 @@ export async function runPlanner(tripId: string): Promise<void> {
       if (seg.dayIndexes.length === 0) continue;
       await setPlanner(tripId, { status: "RUNNING", note: `Gathering places in ${seg.city}${segments.length > 1 ? ` (${k + 1}/${segments.length})` : ""}…`, at: at() });
       const candidates = [...seg.mustSee, ...(await gather(seg.center, failures))];
+      // Villages, islands, hill stations: widen until there's enough real material for the days.
+      let radius = SEARCH_RADIUS_M;
+      for (const r of WIDER_RADII_M) {
+        if (candidates.length >= ENOUGH_CANDIDATES * Math.max(1, seg.dayIndexes.length / 2)) break;
+        await setPlanner(tripId, { status: "RUNNING", note: `Few places right in ${seg.city} — looking within ${r / 1000} km…`, at: at() });
+        const seen = new Set(candidates.map((c) => c.sourceId));
+        candidates.push(...(await gather(seg.center, failures, r)).filter((c) => !seen.has(c.sourceId)));
+        radius = r;
+      }
+      // The traveller's own keywords ("jazz bars", "anime") are searched for directly, so places outside the usual categories exist at all.
+      for (const k of (vibe.keywords ?? []).slice(0, 4)) {
+        const hits = await searchPlaces(`${k} ${seg.city}`, seg.center).catch(() => []);
+        for (const h of hits) {
+          if (h.category === "TRANSIT" || h.category === "ACCOMMODATION" || haversineMeters(seg.center, h) > SEARCH_RADIUS_M * 2) continue;
+          const t = englishTitle({ name: h.nativeName ?? h.name, nameEn: h.name, kind: `search=${k}`, category: h.category });
+          candidates.push({ sourceId: `kw:${h.lat.toFixed(5)},${h.lng.toFixed(5)}`, name: t.title, nameNative: t.native, generic: t.generic, lat: h.lat, lng: h.lng, category: h.category, isOutdoor: h.isOutdoor, kind: `search=${k}`, source: "keyword search" });
+        }
+      }
       // A must-see outside the city's search circle gets its own neighbourhood, so its day isn't spent shuttling.
       for (const m of seg.mustSee.filter((x) => haversineMeters(seg.center, x) > SEARCH_RADIUS_M)) candidates.push(...(await gather(m, failures)));
       totalCandidates += candidates.length;
       if (candidates.length === 0) continue;
 
       const shortlist = [...candidates]
-        .sort((a, b) => scoreCandidate(b, vibe, seg.center, SEARCH_RADIUS_M) - scoreCandidate(a, vibe, seg.center, SEARCH_RADIUS_M))
+        .sort((a, b) => scoreCandidate(b, vibe, seg.center, radius) - scoreCandidate(a, vibe, seg.center, radius))
         .slice(0, CURATOR_LIST_SIZE);
       const curated = await llmJson({
         tier: "fast",
@@ -303,7 +324,7 @@ export async function runPlanner(tripId: string): Promise<void> {
         candidates,
         vibe,
         center: seg.center,
-        radiusMeters: SEARCH_RADIUS_M,
+        radiusMeters: radius,
         city: seg.city,
         curatedOrder,
         pinned: seg.mustSee.map((m) => m.sourceId),
