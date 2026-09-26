@@ -766,10 +766,30 @@ a {
 
 /* SECTION JOURNEY (HOW WE SUPPORT EVERY JOURNEY) */
 .section_journey {
-  z-index: 3;
+  /* height of torn-edge-down.avif at full width (8192 x 1010) */
+  --journey-tear: calc(100vw * 1010 / 8192);
+
+  /* above testimonials so the route, map and grid run right into the tear */
+  z-index: 5;
   background-color: var(--ivory-300);
   position: relative;
   overflow: clip;
+  /* extend the sheet over the testimonials' torn edge, then cut it along
+     the same ripped silhouette: everything printed on it tears with it */
+  padding-bottom: var(--journey-tear);
+  -webkit-mask-image: linear-gradient(#000, #000), url('/images/torn-edge-down.avif');
+  mask-image: linear-gradient(#000, #000), url('/images/torn-edge-down.avif');
+  -webkit-mask-size: 100% calc(100% - var(--journey-tear) + 2px), 100% auto;
+  mask-size: 100% calc(100% - var(--journey-tear) + 2px), 100% auto;
+  -webkit-mask-position: top, bottom;
+  mask-position: top, bottom;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+/* the route's tail runs past its viewBox down into the tear */
+#scroll-svg {
+  overflow: visible;
 }
 
 .padding-section-large {
@@ -959,6 +979,7 @@ a {
 .section_testimonials {
   position: relative;
   z-index: 4;
+  margin-top: calc(100vw * -1010 / 8192);
   overflow: clip;
   background: linear-gradient(
     180deg,
@@ -986,6 +1007,9 @@ a {
   object-fit: cover;
   pointer-events: none;
   filter: drop-shadow(0 4px 8px rgba(61, 45, 32, 0.08));
+  /* keep the shadow under the torn edge only; its blur otherwise bleeds
+     above the image and draws a seam against the journey section */
+  clip-path: inset(0 -1rem -2rem -1rem);
 }
 
 /* Padding overrides */
