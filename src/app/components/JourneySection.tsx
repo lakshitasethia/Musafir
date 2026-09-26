@@ -198,6 +198,12 @@ export function JourneySection({ sectionRef }: { sectionRef: React.RefObject<HTM
           ))}
         </div>
       </div>
+
+      {/* The rip into testimonials: sky + shadow cut along the torn edge,
+          laid over the route and map so they end exactly at the tear */}
+      <div className="journey_tear" aria-hidden="true">
+        <img src="/images/torn-edge-down.avif" alt="" className="journey_tear-shadow" />
+      </div>
     </div>
   );
 }

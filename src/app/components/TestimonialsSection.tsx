@@ -38,16 +38,27 @@ const stories: Story[] = [
   },
 ];
 
-// Route through the four photo centres (x 142 / 368 / 594 / 820, y 100 / 175
-// alternating) in the 1000 x 300 band behind the cards. It loops in the gaps
-// and stays above the text columns.
-const ROUTE =
-  "M0 70C50 40 100 60 142 100C190 150 230 30 265 50C300 70 320 160 368 175C420 190 450 60 500 50C545 42 565 80 594 100C640 130 690 215 745 200C785 185 790 160 820 175C880 205 930 80 1000 90";
-
 // Scrubbed like flyward.com/about: while the scene is pinned, scroll draws the
-// route, and each story fades up the moment the line reaches its photo.
+// route from the screen's left edge; each photo appears once the line reaches
+// it, and the route runs on to the right edge after the last one.
 const PIN_QUERY = "(min-width: 992px)";
-const REVEAL_LEAD = 0.015; // show a card just before the line touches it
+
+type Pt = { x: number; y: number };
+
+// Smooth curve through every point (Catmull-Rom as cubic Béziers).
+function smoothPath(pts: Pt[]): string {
+  let d = `M${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(i - 1, 0)];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[Math.min(i + 2, pts.length - 1)];
+    const c1 = { x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6 };
+    const c2 = { x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6 };
+    d += `C${c1.x.toFixed(1)} ${c1.y.toFixed(1)} ${c2.x.toFixed(1)} ${c2.y.toFixed(1)} ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+  }
+  return d;
+}
 
 interface TestimonialsSectionProps {
   sectionRef?: React.RefObject<HTMLDivElement | null>;
@@ -72,24 +83,58 @@ export function TestimonialsSection({ sectionRef }: TestimonialsSectionProps) {
     let thresholds: number[] = [];
     let frame = 0;
 
-    // Where along the route (0..1) the line reaches each photo's left edge.
+    // Build the route edge to edge through the photos, in the pinned scene's
+    // own pixels, and note where along it (0..1) the line reaches each photo.
     const measure = () => {
-      const svg = route.ownerSVGElement;
-      if (!svg) return;
-      const box = svg.getBoundingClientRect();
-      const total = route.getTotalLength();
-      const samples = Array.from({ length: 241 }, (_, i) => {
-        const at = (i / 240) * total;
-        return { t: at / total, x: route.getPointAtLength(at).x };
-      });
-      thresholds = cards.map((card) => {
-        const img = card.querySelector(".story_image");
-        if (!img || box.width === 0) return 0;
-        const left = ((img.getBoundingClientRect().left - box.left) / box.width) * 1000;
-        return samples.find((s) => s.x >= left)?.t ?? 1;
-      });
       // Pin from the top when the scene fits, else pin once its bottom arrives.
       sticky.style.top = `${Math.min(0, window.innerHeight - sticky.offsetHeight)}px`;
+
+      const svg = route.ownerSVGElement;
+      const box = sticky.getBoundingClientRect();
+      if (!svg || box.width === 0) return;
+      svg.setAttribute("viewBox", `0 0 ${box.width} ${box.height}`);
+
+      const frames = cards.map((card) => {
+        const r = card.querySelector(".story_image")!.getBoundingClientRect();
+        const lift = new DOMMatrix(getComputedStyle(card).transform).m42; // undo reveal offset
+        return { l: r.left - box.left, r: r.right - box.left, t: r.top - box.top - lift, b: r.bottom - box.top - lift };
+      });
+      if (frames.length === 0) return;
+      const h = frames[0].b - frames[0].t;
+      const centres = frames.map((f) => ({ x: (f.l + f.r) / 2, y: (f.t + f.b) / 2 }));
+      const first = frames[0];
+      const last = frames[frames.length - 1];
+
+      // Loops between photos alternate high and low, staying inside the photo
+      // band so the line never crosses the text beneath.
+      const pts: Pt[] = [
+        { x: 0, y: centres[0].y - h * 0.3 },
+        { x: first.l * 0.55, y: centres[0].y + h * 0.28 },
+      ];
+      centres.forEach((c, i) => {
+        pts.push(c);
+        const next = frames[i + 1];
+        if (!next) return;
+        const a = frames[i];
+        const x = (a.r + next.l) / 2;
+        const y = i % 2 === 0 ? Math.min(a.t, next.t) + h * 0.1 : Math.min(a.b, next.b) - h * 0.1;
+        pts.push({ x, y });
+      });
+      pts.push({ x: (last.r + box.width) / 2, y: centres[centres.length - 1].y - h * 0.35 });
+      pts.push({ x: box.width, y: centres[centres.length - 1].y + h * 0.05 });
+      route.setAttribute("d", smoothPath(pts));
+
+      // A photo appears once the line has reached its centre.
+      const total = route.getTotalLength();
+      const samples = Array.from({ length: 401 }, (_, i) => {
+        const at = (i / 400) * total;
+        return { t: i / 400, p: route.getPointAtLength(at) };
+      });
+      thresholds = centres.map((c) =>
+        samples.reduce((best, s) =>
+          Math.hypot(s.p.x - c.x, s.p.y - c.y) < Math.hypot(best.p.x - c.x, best.p.y - c.y) ? s : best
+        ).t
+      );
     };
 
     const update = () => {
@@ -106,7 +151,7 @@ export function TestimonialsSection({ sectionRef }: TestimonialsSectionProps) {
       const distance = zone.height - sticky.offsetHeight;
       const progress = distance > 0 ? Math.min(Math.max((pinTop - zone.top) / distance, 0), 1) : 1;
       route.style.strokeDashoffset = `${1 - progress}`;
-      cards.forEach((card, i) => card.classList.toggle("is-in", progress + REVEAL_LEAD >= thresholds[i]));
+      cards.forEach((card, i) => card.classList.toggle("is-in", progress >= thresholds[i]));
     };
 
     const schedule = () => {
@@ -121,15 +166,19 @@ export function TestimonialsSection({ sectionRef }: TestimonialsSectionProps) {
     window.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", remeasure);
     pinQuery.addEventListener("change", remeasure);
-    // photos are lazy; re-measure once they have their size
-    storiesEl.querySelectorAll("img").forEach((img) => img.addEventListener("load", remeasure));
+    // Photos, fonts and the viewport all move the cards; rebuild the route
+    // whenever the scene's size changes.
+    const resizeObserver = new ResizeObserver(remeasure);
+    resizeObserver.observe(sticky);
+    storiesEl.querySelectorAll(".story_image").forEach((img) => resizeObserver.observe(img));
+    document.fonts?.ready.then(remeasure);
 
     return () => {
       cancelAnimationFrame(frame);
+      resizeObserver.disconnect();
       window.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", remeasure);
       pinQuery.removeEventListener("change", remeasure);
-      storiesEl.querySelectorAll("img").forEach((img) => img.removeEventListener("load", remeasure));
     };
   }, []);
 
@@ -147,7 +196,20 @@ export function TestimonialsSection({ sectionRef }: TestimonialsSectionProps) {
       {/* Pinned scene: heading, route and stories stay put while it plays */}
       <div className="stories_scroll" ref={scrollRef}>
         <div className="stories_sticky" ref={stickyRef}>
-          <div className="padding-global">
+          {/* full-width route, built in JS from the photos' positions */}
+          <svg className="stories_route" aria-hidden="true">
+            <defs>
+              <linearGradient id="stories-route-gradient" x1="0" y1="0" x2="1" y2="0">
+                {/* the journey route's dusk tones, deepened to read on the lilac sky */}
+                <stop offset="0" stopColor="#9585ad" />
+                <stop offset="0.5" stopColor="#b08fae" />
+                <stop offset="1" stopColor="#c8937e" />
+              </linearGradient>
+            </defs>
+            <path ref={routeRef} pathLength={1} />
+          </svg>
+
+          <div className="padding-global stories_content">
             <div className="container-max">
               <h2 className="heading-style-h2 text-align-center">
                 Testimonials by our
@@ -156,23 +218,6 @@ export function TestimonialsSection({ sectionRef }: TestimonialsSectionProps) {
               </h2>
 
               <div className="stories" ref={storiesRef}>
-                <svg
-                  className="stories_route"
-                  viewBox="0 0 1000 300"
-                  preserveAspectRatio="none"
-                  aria-hidden="true"
-                >
-                  <defs>
-                    <linearGradient id="stories-route-gradient" x1="0" y1="0" x2="1000" y2="0" gradientUnits="userSpaceOnUse">
-                      {/* the journey route's dusk tones, deepened to read on the lilac sky */}
-                      <stop offset="0" stopColor="#9585ad" />
-                      <stop offset="0.5" stopColor="#b08fae" />
-                      <stop offset="1" stopColor="#c8937e" />
-                    </linearGradient>
-                  </defs>
-                  <path ref={routeRef} d={ROUTE} pathLength={1} />
-                </svg>
-
                 <ol className="stories_list">
                   {stories.map((story, i) => (
                     <li key={story.who} className="story">
