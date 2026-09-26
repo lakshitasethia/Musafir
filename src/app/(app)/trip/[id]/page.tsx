@@ -8,7 +8,7 @@ export default async function TravellerTrip({ params }: { params: Promise<{ id: 
   return (
     <>
       <TopBar name={user.name} role="traveller" home="/trip" guest={user.guest} />
-      <main className="mz-shell">
+      <main className="mz-shell mz-mapped">
         <Workspace tripId={id} role="traveller" backHref="/trip" />
       </main>
     </>

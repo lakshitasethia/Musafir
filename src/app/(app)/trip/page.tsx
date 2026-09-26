@@ -7,7 +7,7 @@ export default async function TravellerHome() {
   return (
     <>
       <TopBar name={user.name} role="traveller" home="/trip" guest={user.guest} />
-      <main className="mz-shell">
+      <main className="mz-shell mz-mapped">
         <div className="mz-page-head">
           <h1 className="mz-display mz-h1">Your journeys</h1>
           <p className="mz-small mz-muted" style={{ margin: 0 }}>

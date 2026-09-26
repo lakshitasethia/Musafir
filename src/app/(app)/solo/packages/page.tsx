@@ -1,9 +1,9 @@
-import { PackagesView } from "../_components/Essentials";
-import { gate } from "../_components/gate";
-import { TopBar } from "../_components/TopBar";
+import { PackagesView } from "./PackagesView";
+import { gate } from "../../_components/gate";
+import { TopBar } from "../../_components/TopBar";
 
 export default async function PackagesPage() {
-  const user = await gate("traveller", "/packages");
+  const user = await gate("traveller", "/solo/packages");
   return (
     <>
       <TopBar name={user.name} role="traveller" home="/trip" guest={user.guest} />

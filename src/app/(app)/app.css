@@ -49,6 +49,18 @@ html:has(.mz-app) {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Traveller sections (trip, flights, hotels, packages): the landing page's
+   coastline map and its wide survey grid, pinned behind the content. */
+.mz-app:has(.mz-mapped) {
+  background-image:
+    linear-gradient(to right, rgba(194, 198, 202, 0.22) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(194, 198, 202, 0.22) 1px, transparent 1px),
+    url("/images/journey-map-flipped.svg");
+  background-size: 25% 100%, 100% 345px, cover;
+  background-position: -1px 0, 0 -1px, center;
+  background-attachment: scroll, scroll, fixed;
+}
+
 :where(.mz-app) :where(*, *::before, *::after) {
   box-sizing: border-box;
 }
@@ -81,7 +93,7 @@ html:has(.mz-app) {
 .mz-h2 { font-size: clamp(1.6rem, 5vw, 2.4rem); }
 .mz-h3 { font-size: 1.2rem; letter-spacing: 0.05em; line-height: 1.02; }
 .mz-label {
-  font-size: 0.72rem;
+  font-size: 0.84rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--mz-ink-soft);
@@ -89,8 +101,8 @@ html:has(.mz-app) {
 a.mz-label { text-decoration: none; transition: color 0.18s; }
 a.mz-label:hover { color: var(--mz-ink); }
 .mz-muted { color: var(--mz-ink-soft); }
-.mz-small { font-size: 0.9rem; }
-.mz-tiny { font-size: 0.78rem; }
+.mz-small { font-size: 1rem; }
+.mz-tiny { font-size: 0.88rem; }
 .mz-mono { font-variant-numeric: tabular-nums; }
 
 /* ── Layout ───────────────────────────────────────── */
@@ -135,7 +147,7 @@ a.mz-label:hover { color: var(--mz-ink); }
 }
 .mz-topbar-right { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .mz-role {
-  font-size: 0.68rem;
+  font-size: 0.8rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   padding: 5px 10px 4px;
@@ -230,7 +242,7 @@ a.mz-label:hover { color: var(--mz-ink); }
   border: 1px solid var(--mz-ink);
   background: transparent;
   color: var(--mz-ink);
-  font-size: 0.76rem;
+  font-size: 0.86rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   cursor: pointer;
@@ -252,7 +264,7 @@ a.mz-label:hover { color: var(--mz-ink); }
 .mz-btn-danger { border-color: var(--mz-red); color: var(--mz-red); }
 .mz-btn-danger:hover { background: var(--mz-red); color: #fff; }
 /* Small buttons stay 44px tall on touch screens; they only shrink where a mouse is used. */
-.mz-btn-sm { min-height: 44px; padding: 1px 16px 0; font-size: 0.7rem; }
+.mz-btn-sm { min-height: 44px; padding: 1px 16px 0; font-size: 0.82rem; }
 @media (hover: hover) and (pointer: fine) {
   .mz-btn-sm { min-height: 36px; }
 }
@@ -264,7 +276,7 @@ a.mz-label:hover { color: var(--mz-ink); }
   border-radius: 2px;
   border: 1px solid var(--mz-line-strong);
   background: transparent;
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
   transition: background-color 0.18s, color 0.18s, border-color 0.18s;
@@ -370,7 +382,7 @@ a.mz-label:hover { color: var(--mz-ink); }
   border: 1px solid var(--mz-ink);
 }
 .mz-fader input[type="range"]:focus-visible { outline: 2px solid var(--mz-slate); outline-offset: 2px; }
-.mz-fader-ends { display: flex; justify-content: space-between; gap: 12px; font-size: 0.76rem; color: var(--mz-ink-soft); }
+.mz-fader-ends { display: flex; justify-content: space-between; gap: 12px; font-size: 0.86rem; color: var(--mz-ink-soft); }
 
 /* ── Day tabs — ticket stubs on a rule ────────────── */
 .mz-tabs {
@@ -426,7 +438,7 @@ a.mz-label:hover { color: var(--mz-ink); }
   left: 0;
   top: -0.55em;
   width: 48px;
-  font-size: 0.72rem;
+  font-size: 0.84rem;
   color: var(--mz-ink-faint);
   font-variant-numeric: tabular-nums;
 }
@@ -434,7 +446,7 @@ a.mz-label:hover { color: var(--mz-ink); }
 .mz-edge-label {
   position: absolute;
   left: 40px;
-  font-size: 0.68rem;
+  font-size: 0.8rem;
   padding: 1px 6px;
   border-radius: 100px;
   background: var(--mz-paper);
@@ -471,8 +483,8 @@ a.mz-label:hover { color: var(--mz-ink); }
 }
 .mz-node.is-removed { opacity: 0.35; text-decoration: line-through; }
 .mz-node-title { font-family: Apris, serif; font-size: 1rem; letter-spacing: 0.03em; text-transform: uppercase; line-height: 1.05; }
-.mz-node-meta { font-size: 0.75rem; color: var(--mz-ink-soft); margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; }
-.mz-node-native { font-size: 0.8rem; opacity: 0.8; }
+.mz-node-meta { font-size: 0.86rem; color: var(--mz-ink-soft); margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; }
+.mz-node-native { font-size: 0.9rem; opacity: 0.8; }
 
 .mz-empty {
   position: relative;
@@ -481,11 +493,11 @@ a.mz-label:hover { color: var(--mz-ink); }
   border-radius: 0;
   background: rgba(251, 248, 243, 0.7);
   text-align: center;
-  font-size: 0.95rem;
+  font-size: 1.02rem;
   color: var(--mz-ink-soft);
 }
 
-.mz-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.72rem; letter-spacing: 0.06em; color: var(--mz-ink-soft); }
+.mz-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.84rem; letter-spacing: 0.06em; color: var(--mz-ink-soft); }
 .mz-legend i { display: inline-block; width: 18px; height: 2px; vertical-align: middle; margin-right: 6px; }
 
 /* ── "When plans break" — the one dark, torn-edge band ─
@@ -607,7 +619,7 @@ section[aria-label="Itinerary graph"] > .mz-panel:nth-child(2) .mz-btn-solid:hov
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.64rem;
+  font-size: 0.78rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   padding: 4px 9px 3px;
@@ -619,14 +631,14 @@ section[aria-label="Itinerary graph"] > .mz-panel:nth-child(2) .mz-btn-solid:hov
 .mz-tier.t-AUTO { color: var(--mz-sage); }
 .mz-tier.t-TRAVELLER { color: var(--mz-amber); }
 .mz-tier.t-OPERATOR { color: var(--mz-red); }
-.mz-status { font-size: 0.68rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mz-ink-soft); }
-.mz-agent { display: flex; gap: 10px; align-items: center; font-size: 0.85rem; color: var(--mz-slate); }
+.mz-status { font-size: 0.8rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mz-ink-soft); }
+.mz-agent { display: flex; gap: 10px; align-items: center; font-size: 0.95rem; color: var(--mz-slate); }
 .mz-pulse { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--mz-slate); animation: mz-pulse 1.1s infinite ease-in-out; }
 .mz-patch-list {
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   color: var(--mz-ink-soft);
   display: grid;
   gap: 4px;
@@ -639,7 +651,7 @@ section[aria-label="Itinerary graph"] > .mz-panel:nth-child(2) .mz-btn-solid:hov
 }
 .mz-patch-list li::before {
   content: counter(mz-patch, decimal-leading-zero);
-  font-size: 0.68rem;
+  font-size: 0.8rem;
   line-height: 1.9;
   font-variant-numeric: tabular-nums;
   color: var(--mz-ink-faint);
@@ -720,12 +732,12 @@ section[aria-label="Itinerary graph"] > .mz-panel:nth-child(2) .mz-btn-solid:hov
   gap: 10px;
   padding: 9px 0;
   border-bottom: 1px solid var(--mz-line);
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   line-height: 1.4;
 }
 .mz-feed li:last-child { border-bottom: 0; }
 .mz-feed time { color: var(--mz-ink-faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.mz-feed strong { font-weight: 400; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.72rem; }
+.mz-feed strong { font-weight: 400; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.84rem; }
 .mz-toast {
   position: fixed;
   left: 50%;
@@ -738,13 +750,13 @@ section[aria-label="Itinerary graph"] > .mz-panel:nth-child(2) .mz-btn-solid:hov
   border-radius: 100px;
   background: var(--mz-obsidian);
   color: var(--mz-on-dark);
-  font-size: 0.9rem;
+  font-size: 1rem;
   box-shadow: 0 12px 30px -10px rgba(28, 33, 36, 0.5);
   animation: mz-toast-in 0.35s var(--mz-ease);
 }
 .mz-toast.is-error { background: var(--mz-red); }
 @keyframes mz-toast-in { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
-.mz-live { display: inline-flex; align-items: center; gap: 7px; font-size: 0.68rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mz-ink-soft); }
+.mz-live { display: inline-flex; align-items: center; gap: 7px; font-size: 0.8rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mz-ink-soft); }
 .mz-live i { width: 7px; height: 7px; border-radius: 50%; background: var(--mz-silver); }
 .mz-live.is-on i { background: var(--mz-sage); box-shadow: 0 0 0 0 rgba(94, 139, 114, 0.5); animation: mz-beacon 2.4s infinite; }
 @keyframes mz-beacon { 0% { box-shadow: 0 0 0 0 rgba(94, 139, 114, 0.5); } 70%, 100% { box-shadow: 0 0 0 7px rgba(94, 139, 114, 0); } }
@@ -849,10 +861,10 @@ section[aria-label="Itinerary graph"] > .mz-panel:nth-child(2) .mz-btn-solid:hov
 .mz-auth-card > .mz-brand { justify-self: start; }
 .mz-auth-card > .mz-h1 { font-size: clamp(2.4rem, 10vw, 3.6rem); padding-bottom: 14px; border-bottom: 1px solid var(--mz-ink); }
 .mz-auth-card a:not(.mz-brand) { text-underline-offset: 3px; }
-.mz-error { color: var(--mz-red); font-size: 0.9rem; margin: 0; }
+.mz-error { color: var(--mz-red); font-size: 1rem; margin: 0; }
 .mz-note {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   color: var(--mz-slate);
   border: 0;
   border-left: 2px solid var(--mz-slate);
@@ -892,10 +904,10 @@ section[aria-label="Itinerary graph"] > .mz-panel:nth-child(2) .mz-btn-solid:hov
 .mz-stop.is-ghost { border-top: 1px dashed var(--mz-slate); color: var(--mz-slate); pointer-events: none; }
 .mz-stop.is-ghost .mz-stop-title,
 .mz-stop.is-ghost .mz-stop-time { color: var(--mz-slate); }
-.mz-stop-time { font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mz-ink-soft); padding-top: 12px; }
+.mz-stop-time { font-size: 0.84rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mz-ink-soft); padding-top: 12px; }
 .mz-stop-title { font-family: Apris, serif; font-size: clamp(1.3rem, 2.4vw, 1.85rem); text-transform: uppercase; letter-spacing: 0.04em; line-height: 1.02; }
 .mz-stop-native { font-size: 1rem; color: var(--mz-ink-soft); }
-.mz-stop-meta { font-size: 0.82rem; color: var(--mz-ink-soft); }
+.mz-stop-meta { font-size: 0.92rem; color: var(--mz-ink-soft); }
 .mz-marker {
   position: absolute;
   top: -20px;
@@ -912,7 +924,7 @@ section[aria-label="Itinerary graph"] > .mz-panel:nth-child(2) .mz-btn-solid:hov
   box-shadow: 0 0 0 4px var(--mz-paper);
   transition: transform 0.25s var(--mz-ease);
 }
-.mz-journey:not(.is-wide) .mz-marker { width: 32px; height: 32px; top: -16px; font-size: 0.9rem; margin-left: 6px; }
+.mz-journey:not(.is-wide) .mz-marker { width: 32px; height: 32px; top: -16px; font-size: 1rem; margin-left: 6px; }
 .mz-stop.is-hard .mz-marker { box-shadow: 0 0 0 3px var(--mz-paper), 0 0 0 4px var(--mz-ink); }
 .mz-stop.is-ghost .mz-marker { background: var(--mz-paper); color: var(--mz-slate); border: 1px dashed var(--mz-slate); }
 .mz-leg {
@@ -925,7 +937,7 @@ section[aria-label="Itinerary graph"] > .mz-panel:nth-child(2) .mz-btn-solid:hov
   border-radius: 100px;
   background: var(--mz-paper);
   border: 1px solid currentColor;
-  font-size: 0.66rem;
+  font-size: 0.8rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   white-space: nowrap;
@@ -935,7 +947,7 @@ section[aria-label="Itinerary graph"] > .mz-panel:nth-child(2) .mz-btn-solid:hov
 .mz-journey:not(.is-wide) .mz-leg { transform: translate(0, -50%); }
 .mz-leg i { width: 6px; height: 6px; border-radius: 50%; }
 .mz-leg.is-tight { border-style: dashed; }
-.mz-stop-leg { font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; padding-top: 8px; }
+.mz-stop-leg { font-size: 0.82rem; letter-spacing: 0.1em; text-transform: uppercase; padding-top: 8px; }
 .mz-journey:not(.is-wide) .mz-stop-leg + .mz-marker { top: -16px; }
 
 /* ═══ _ui presentational components (src/app/(app)/_ui) ═══════════════ */
@@ -954,7 +966,7 @@ section[aria-label="Itinerary graph"] > .mz-panel:nth-child(2) .mz-btn-solid:hov
 /* SectionHeader — index number, eyebrow, huge heading, hairline. */
 .mz-section-head { display: grid; gap: 10px; padding-bottom: 16px; border-bottom: 1px solid currentColor; }
 .mz-section-head-top { display: flex; align-items: baseline; gap: 14px; }
-.mz-section-index { font-family: Apris, serif; font-size: 0.95rem; letter-spacing: 0.1em; }
+.mz-section-index { font-family: Apris, serif; font-size: 1.02rem; letter-spacing: 0.1em; }
 .mz-section-head.is-dark { color: var(--mz-on-dark); }
 .mz-section-head.is-dark .mz-label { color: var(--mz-on-dark-soft); }
 
@@ -1029,7 +1041,7 @@ section[aria-label="Itinerary graph"] > .mz-panel:nth-child(2) .mz-btn-solid:hov
   border-radius: 100px;
   background: var(--mz-amber-soft);
   color: var(--mz-obsidian);
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   font-variant-numeric: tabular-nums;
 }
 .mz-ribbon-title { font-family: Apris, serif; font-size: 1.1rem; letter-spacing: 0.08em; text-transform: uppercase; }
@@ -1111,8 +1123,8 @@ section[aria-label="Itinerary graph"] > .mz-panel:nth-child(2) .mz-btn-solid:hov
 }
 .mz-taxi-stub::before { left: -11px; }
 .mz-taxi-stub::after { right: -11px; }
-.mz-taxi-stub dt { font-size: 0.66rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mz-ink-soft); }
-.mz-taxi-stub dd { margin: 2px 0 0; font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+.mz-taxi-stub dt { font-size: 0.8rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mz-ink-soft); }
+.mz-taxi-stub dd { margin: 2px 0 0; font-size: 1.02rem; font-variant-numeric: tabular-nums; }
 .mz-taxi-stub div { min-width: 0; }
 
 /* KnowCard — tap-to-read "Know before you go". Every fact shows its source. */
@@ -1147,10 +1159,10 @@ section[aria-label="Itinerary graph"] > .mz-panel:nth-child(2) .mz-btn-solid:hov
   padding: 10px 0;
   border-top: 1px solid var(--mz-line);
 }
-.mz-know-fact dt { font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--mz-ink-soft); padding-top: 3px; }
+.mz-know-fact dt { font-size: 0.84rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--mz-ink-soft); padding-top: 3px; }
 .mz-know-fact dd { margin: 0; font-size: 1rem; }
 .mz-know-fact.is-unverified dd { color: var(--mz-ink-soft); font-style: italic; }
-.mz-know-source { grid-column: 1 / -1; font-size: 0.72rem; color: var(--mz-ink-faint); }
+.mz-know-source { grid-column: 1 / -1; font-size: 0.84rem; color: var(--mz-ink-faint); }
 .mz-know-source a { color: inherit; text-underline-offset: 2px; }
 
 /* GroupRoom — who's on the trip, and whether they've seen the latest change. */
@@ -1189,3 +1201,11 @@ section[aria-label="Itinerary graph"] > .mz-panel:nth-child(2) .mz-btn-solid:hov
     transition-duration: 0.001ms !important;
   }
 }
+
+/* Traveller sections: small text at 1.5x. Tune --mz-small-scale to dial it back. */
+.mz-mapped { --mz-small-scale: 1.5; }
+.mz-mapped .mz-small { font-size: calc(1rem * var(--mz-small-scale)); }
+.mz-mapped .mz-tiny { font-size: calc(0.88rem * var(--mz-small-scale)); }
+.mz-mapped .mz-label { font-size: calc(0.84rem * var(--mz-small-scale)); }
+.mz-mapped .mz-empty { font-size: calc(1.02rem * var(--mz-small-scale)); }
+.mz-mapped .mz-btn-sm { font-size: calc(0.82rem * var(--mz-small-scale)); }

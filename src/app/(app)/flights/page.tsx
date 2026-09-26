@@ -7,7 +7,7 @@ export default async function FlightsPage() {
   return (
     <>
       <TopBar name={user.name} role="traveller" home="/trip" guest={user.guest} />
-      <main className="mz-shell" style={{ paddingTop: 32 }}>
+      <main className="mz-shell mz-mapped" style={{ paddingTop: 32 }}>
         <FlightsView />
       </main>
     </>

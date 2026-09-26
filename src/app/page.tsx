@@ -337,16 +337,16 @@ export default function MusafirExperience() {
           <div className="container-max">
             <div className="travel_grid-wrapper">
               <div className="travel_grid">
-                {/* Card 1: Private Travel */}
+                {/* Card 1: Solo Travel */}
                 <div className="travel_grid-item">
                   <img
-                    src="/images/grid1.avif"
-                    alt="Private Travel"
+                    src="/images/solo_travel.jpeg"
+                    alt="Solo Travel"
                     className="travel_grid-item-img"
                   />
                   <div className="travel_grid-item-bottom">
                     <a
-                      href="#private"
+                      href="/solo/packages"
                       className="button is-secondary is-blur"
                     >
                       <div>EXPLORE</div>
@@ -367,7 +367,7 @@ export default function MusafirExperience() {
                     </a>
                     <div className="travel_grid-item-bottom-line">
                       <h3>
-                        Private <br />
+                        Solo <br />
                         travel
                       </h3>
                       <div className="travel_grid-item-bottom-text">
@@ -379,16 +379,16 @@ export default function MusafirExperience() {
                   </div>
                 </div>
 
-                {/* Card 2: Corporate Travel */}
+                {/* Card 2: Group Travel */}
                 <div className="travel_grid-item">
                   <img
-                    src="/images/grid2.avif"
-                    alt="Corporate Travel"
+                    src="/images/group_travel.jpeg"
+                    alt="Group Travel"
                     className="travel_grid-item-img"
                   />
                   <div className="travel_grid-item-bottom">
                     <a
-                      href="#corporate"
+                      href="/group/packages"
                       className="button is-secondary is-blur"
                     >
                       <div>EXPLORE</div>
@@ -409,7 +409,7 @@ export default function MusafirExperience() {
                     </a>
                     <div className="travel_grid-item-bottom-line">
                       <h3>
-                        Corporate <br />
+                        Group <br />
                         travel
                       </h3>
                       <div className="travel_grid-item-bottom-text">
