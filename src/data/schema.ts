@@ -78,3 +78,41 @@ export type EmergencyNumber = z.infer<typeof EmergencyNumberSchema>;
 export type PlugType = z.infer<typeof PlugTypeSchema>;
 export type Tipping = z.infer<typeof TippingSchema>;
 export type DatasetGap = z.infer<typeof GapSchema>;
+
+// ── weather-impact-classes.json (the Weather Digital Twin's cited thresholds) ──
+const classSource = z.number().int().nonnegative(); // index into the section's `sources`
+const nullableNumber = z.number().nullable();
+
+const RainClassSchema = z.object({ key: z.string().startsWith("rain:"), label: z.string(), minMmPerHour: z.number().nonnegative(), maxMmPerHour: nullableNumber, source: classSource });
+const HeatClassSchema = z.object({
+  key: z.string().startsWith("heat:"),
+  label: z.string(),
+  minF: z.number(),
+  maxF: nullableNumber,
+  minC: z.number(),
+  maxC: nullableNumber,
+  effect: z.string().min(1),
+  source: classSource,
+});
+const WindClassSchema = z.object({
+  key: z.string().regex(/^(gust|beaufort):/),
+  force: z.number().int().min(0).max(12),
+  label: z.string(),
+  minKnots: z.number().nonnegative(),
+  maxKnots: nullableNumber,
+  minKmh: z.number().nonnegative(),
+  maxKmh: nullableNumber,
+  source: classSource,
+});
+const section = <T extends z.ZodType>(cls: T) =>
+  z.object({ unit: z.string(), note: z.string().min(1), classes: z.array(cls).min(1), sources: z.array(SourceSchema).min(1) });
+
+export const WeatherImpactClassesSchema = z.object({
+  dataset: z.literal("weather-impact-classes"),
+  description: z.string(),
+  checkedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  rainRate: section(RainClassSchema),
+  heatIndex: section(HeatClassSchema),
+  wind: section(WindClassSchema),
+});
+export type WeatherImpactClasses = z.infer<typeof WeatherImpactClassesSchema>;

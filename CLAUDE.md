@@ -224,7 +224,7 @@ Proposals (`store.ts` `ProposalRecord`) carry `baseVersion`, options with a serv
 **Not built / limits:**
 - Travel buddies (swipe matching), user/operator dashboards with a Neo4j graph view, hotel specialist per city segment, proactive tour-manager briefs — see HANDOFF.md
 - `.env.local` key for Nugen is named `NUGEN_API` (code accepts it and `NUGEN_API_KEY`)
-- Parth: `auditors/*`, `src/data/*` verified datasets (KnowCard facts, translated "take me here" phrase), GitHub Actions sentinel workflow
+- Parth: translated "take me here" phrase dataset for the KnowCard. (Done: `auditors/*`, `src/data/*` emergency numbers, plug types, tipping, weather-impact classes; `.github/workflows/sentinel.yml`; `docs/api-contract.md`, `demo-script.md`, `test-scenarios.md`.)
 - Realtime across instances: SSE is in-process; multiple servers need a shared channel (e.g. Supabase Realtime / Redis) even with Neo4j
 - Transitland (needs a key); phonetic romanization on the Taxi card
 - Flight/hotel **booking and prices** are out of scope (no free API) — hand-offs only
@@ -299,5 +299,17 @@ Two judged requirements: (A) a **weather-driven Digital Twin** inside Musafir �
 | **Verified dataset** `src/data/weather-impact-classes.json` (+ schema + test in `src/data`): AMS/WMO rain-rate classes, NWS heat-index bands, Beaufort gust classes — each with `source` URL + `checkedOn`. Aryan then makes the twin read it instead of constants | `/ops/twin` operator page: fleet map, operator workload by hour, displaced-visit hotspots (indoor-venue demand), city conditions + social feed |
 | **Social-source check (no server)**: for each demo city open the public URLs directly (e.g. `https://mastodon.social/api/v1/timelines/tag/mumbairain`, Lemmy search, GDELT DOC API) and log which return posts; propose extra hashtags/queries in `docs/` | Wire Parth's dataset + `NUGEN_MODEL`; twin refresh on sentinel ticks; e2e checks (twin read-only, `/ops/twin` operator-only) |
 | **Docs**: `docs/digital-twin.md` (how requirements 1–4 are met; screenshots from Aryan), `docs/nugen-alignment.md` (pipeline, base model, before/after metrics), twin scenarios in `docs/test-scenarios.md` (normal vs extreme: monsoon Mumbai, 45 °C Jaipur, typhoon Osaka) and a 3-minute demo script | Build, merges, CLAUDE.md, push |
+
+**Parth status (2026-09-27, 04:10 IST):**
+- ✅ `src/data/weather-impact-classes.json` + `WeatherImpactClassesSchema` (`src/data/schema.ts`) + tests. Keys match the twin's `ImpactKey` (`rain:*`, `heat:*`, `gust:gale`, `gust:strong`), plus Beaufort 6–12 and NWS "extreme danger". Every value was read from AMS, WMO, NWS, the Met Office and NOAA; conversions are test-checked. Ready for Aryan to replace the twin's constants.
+- ⚠️ Source facts the twin's labels should follow:
+  - WMO says there is **no agreed international definition** of rain intensity; "violent > 50 mm/h" is a WMO term for **showers**, not an AMS class.
+  - There is no cited "dry < 0.2 mm/h" bound; it's a product choice.
+  - Beaufort 7/9 are **mean-wind** classes (28 kt / 41 kt = 51.9 / 75.9 km/h), so applying them to gusts is an approximation.
+- ⛔ **Nugen alignment blocked on Nugen's side.**
+  - Done: `corpus`, benchmark review and `upload`. The benchmark went from 15 to 14 samples: 10 swap-to-a-stop-already-in-the-plan options removed, 2 mislabelled "long ride as rain" samples dropped, 6 rain windows aligned, and 6 unpredictable "applied by / status" tails cut. Wiki markup was cleaned; originals are kept as `.data/nugen/*.orig`.
+  - Failing: every `align` since 21:54 fails within about 20 s with `Finetuning failed: Nugen job creation failed: HTTP 502 Bad Gateway` (stages `training_data_upload: outcome_unknown`, `training: finetuning_failure`). This reproduces on `llama-v3p2-3b-reasoning` and `qwen-v2p5-0p5b-instruct`, with both the `.jsonl` and a plain-text corpus.
+  - Needs: a support ticket from the Nugen account owner (tanna.at7@gmail.com), quoting e.g. `alignment_01m3fxwjn9y0pgdx` and `alignment_01m3fxv9953ckv5b`. Don't loop retries.
+- 🐞 For Aryan: the resolver and cluster agent sometimes propose swapping a stop for a place **already in that day's plan**; this showed up in 10 real cases in the corpus.
 
 Handoff rules: Parth never edits `src/server/**`, `src/lib/musafir/twin.ts` or `scripts/nugen-align.mts` — report issues to Aryan. Aryan never edits `src/data/**` or `docs/**`.

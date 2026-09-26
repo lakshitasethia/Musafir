@@ -1,0 +1,69 @@
+{
+  "dataset": "weather-impact-classes",
+  "description": "Cited thresholds the Weather Digital Twin buckets weather into (keys match ImpactKey in src/lib/musafir/twin.ts). Values are copied from the cited pages; unit conversions are shown with the factor used. The probabilities attached to each class are the twin's learned beliefs, not part of this dataset.",
+  "checkedOn": "2026-09-27",
+  "rainRate": {
+    "unit": "mm/h",
+    "note": "AMS defines light / moderate / heavy. WMO states there is no agreed international definition of rainfall intensity and gives >50 mm/h as 'violent' for showers only, typical of tropical regions. There is no official lower bound for 'dry': AMS light rain starts at a trace, so any 'dry below X mm/h' cut-off is a product choice, not a cited value.",
+    "classes": [
+      { "key": "rain:light", "label": "light", "minMmPerHour": 0, "maxMmPerHour": 2.5, "source": 0 },
+      { "key": "rain:moderate", "label": "moderate", "minMmPerHour": 2.6, "maxMmPerHour": 7.6, "source": 0 },
+      { "key": "rain:heavy", "label": "heavy", "minMmPerHour": 7.6, "maxMmPerHour": null, "source": 0 },
+      { "key": "rain:violent", "label": "violent (showers)", "minMmPerHour": 50, "maxMmPerHour": null, "source": 1 }
+    ],
+    "sources": [
+      {
+        "url": "https://glossary.ametsoc.org/wiki/Rain",
+        "verification": "page-read",
+        "quote": "1) “light,” the rate of fall varying between a trace and 0.25 cm (0.10 in.) per hour … 2) “moderate,” from 0.26 to 0.76 cm (0.11 to 0.30 in.) per hour … 3) “heavy,” over 0.76 cm (0.30 in.) per hour"
+      },
+      {
+        "url": "https://community.wmo.int/site/knowledge-hub/programmes-and-initiatives/aviation/aviation-hazards-precipitation",
+        "verification": "page-read",
+        "quote": "While there is no agreed international definition regarding rainfall intensity … Showers are further classified as being violent if the rate exceeds 50 mm per hour, although these are normally considered to be rates typical for tropical regions."
+      }
+    ]
+  },
+  "heatIndex": {
+    "unit": "°F (°C converted: (F − 32) × 5/9, 1 decimal)",
+    "note": "NWS bands are for the heat index. Musafir applies them to Open-Meteo's apparent temperature, which is a related but different measure; label it 'feels like', not 'heat index'.",
+    "classes": [
+      { "key": "heat:caution", "label": "Caution", "minF": 80, "maxF": 90, "minC": 26.7, "maxC": 32.2, "effect": "Fatigue possible with prolonged exposure and/or physical activity", "source": 0 },
+      { "key": "heat:extreme", "label": "Extreme Caution", "minF": 90, "maxF": 103, "minC": 32.2, "maxC": 39.4, "effect": "Heat stroke, heat cramps, or heat exhaustion possible with prolonged exposure and/or physical activity", "source": 0 },
+      { "key": "heat:danger", "label": "Danger", "minF": 103, "maxF": 124, "minC": 39.4, "maxC": 51.1, "effect": "Heat cramps or heat exhaustion likely, and heat stroke possible with prolonged exposure and/or physical activity", "source": 0 },
+      { "key": "heat:extreme-danger", "label": "Extreme Danger", "minF": 125, "maxF": null, "minC": 51.7, "maxC": null, "effect": "Heat stroke highly likely", "source": 0 }
+    ],
+    "sources": [
+      {
+        "url": "https://www.weather.gov/ama/heatindex",
+        "verification": "page-read",
+        "quote": "Caution 80°F - 90°F … Extreme Caution 90°F - 103°F … Danger 103°F - 124°F … Extreme Danger 125°F or higher: Heat stroke highly likely"
+      }
+    ]
+  },
+  "wind": {
+    "unit": "knots (km/h converted: × 1.852, 1 decimal)",
+    "note": "The Beaufort scale classifies MEAN wind speed. Musafir compares gusts against the force 7 / 9 lower bounds; gusts run higher than the mean, so that is a conservative approximation, not the scale's own definition.",
+    "classes": [
+      { "key": "beaufort:6", "force": 6, "label": "Strong breeze", "minKnots": 22, "maxKnots": 27, "minKmh": 40.7, "maxKmh": 50, "source": 0 },
+      { "key": "gust:gale", "force": 7, "label": "Near gale", "minKnots": 28, "maxKnots": 33, "minKmh": 51.9, "maxKmh": 61.1, "source": 0 },
+      { "key": "beaufort:8", "force": 8, "label": "Gale", "minKnots": 34, "maxKnots": 40, "minKmh": 63, "maxKmh": 74.1, "source": 0 },
+      { "key": "gust:strong", "force": 9, "label": "Strong gale", "minKnots": 41, "maxKnots": 47, "minKmh": 75.9, "maxKmh": 87, "source": 0 },
+      { "key": "beaufort:10", "force": 10, "label": "Storm", "minKnots": 48, "maxKnots": 55, "minKmh": 88.9, "maxKmh": 101.9, "source": 0 },
+      { "key": "beaufort:11", "force": 11, "label": "Violent storm", "minKnots": 56, "maxKnots": 63, "minKmh": 103.7, "maxKmh": 116.7, "source": 0 },
+      { "key": "beaufort:12", "force": 12, "label": "Hurricane", "minKnots": 64, "maxKnots": null, "minKmh": 118.5, "maxKmh": null, "source": 0 }
+    ],
+    "sources": [
+      {
+        "url": "https://weather.metoffice.gov.uk/guides/coast-and-sea/beaufort-scale",
+        "verification": "page-read",
+        "quote": "Beaufort wind scale — Mean Wind Speed — Limits of wind speed (Knots): 6 22-27 Strong breeze; 7 28-33 Near gale; 8 34-40 Gale; 9 41-47 Strong gale; 10 48-55 Storm; 11 56-63 Violent storm; 12 64+ Hurricane"
+      },
+      {
+        "url": "https://www.spc.noaa.gov/faq/tornado/beaufort.html",
+        "verification": "page-read",
+        "quote": "7 28-33 Near Gale … 8 34-40 Gale … 9 41-47 Strong Gale … 10 48-55 Storm"
+      }
+    ]
+  }
+}

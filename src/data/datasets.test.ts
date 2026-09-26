@@ -1,10 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { EmergencyNumbersFileSchema, PlugTypesFileSchema, TippingFileSchema } from "./schema.ts";
+import { EmergencyNumbersFileSchema, PlugTypesFileSchema, TippingFileSchema, WeatherImpactClassesSchema } from "./schema.ts";
 
 const load = (name: string): unknown => JSON.parse(readFileSync(new URL(`./${name}`, import.meta.url), "utf8"));
-const today = new Date().toISOString().slice(0, 10);
+// the latest calendar date anywhere right now (UTC+14), so a date checked in a timezone ahead of UTC still passes
+const today = new Date(Date.now() + 14 * 3_600_000).toISOString().slice(0, 10);
 
 const files = [
   { name: "emergency-numbers.json", schema: EmergencyNumbersFileSchema },
@@ -65,4 +66,45 @@ test("data: schemas reject unsourced or undated entries", () => {
   const ok = [{ url: "https://www.japan.travel/en/plan/emergencies/", verification: "page-read", quote: "Police: 110" }];
   assert.equal(EmergencyNumbersFileSchema.safeParse(file({ ...base, checkedOn: "26/09/2026", sources: ok })).success, false);
   assert.equal(EmergencyNumbersFileSchema.safeParse(file({ ...base, sources: ok })).success, true);
+});
+
+// ── weather-impact-classes.json ─────────────────────────────────────
+const round1 = (x: number) => Math.round(x * 10) / 10;
+
+test("data: weather-impact-classes matches its schema, is dated and sourced", () => {
+  const d = WeatherImpactClassesSchema.parse(load("weather-impact-classes.json"));
+  assert.ok(d.checkedOn <= today);
+  for (const sec of [d.rainRate, d.heatIndex, d.wind]) {
+    for (const c of sec.classes) assert.ok(c.source < sec.sources.length, `${c.key} cites a missing source`);
+    for (const s of sec.sources) assert.ok(s.url.startsWith("https://"));
+  }
+});
+
+test("data: weather classes are ordered, non-overlapping, and conversions are exact", () => {
+  const d = WeatherImpactClassesSchema.parse(load("weather-impact-classes.json"));
+  const ascending = (xs: number[]) => xs.every((x, i) => i === 0 || x > xs[i - 1]);
+  assert.ok(ascending(d.rainRate.classes.map((c) => c.minMmPerHour)));
+  assert.ok(ascending(d.heatIndex.classes.map((c) => c.minF)));
+  assert.ok(ascending(d.wind.classes.map((c) => c.force)));
+  for (const c of d.heatIndex.classes) {
+    assert.equal(c.minC, round1(((c.minF - 32) * 5) / 9), `${c.key} minC`);
+    if (c.maxF !== null) assert.equal(c.maxC, round1(((c.maxF - 32) * 5) / 9), `${c.key} maxC`);
+  }
+  for (const c of d.wind.classes) {
+    assert.equal(c.minKmh, round1(c.minKnots * 1.852), `${c.key} minKmh`);
+    if (c.maxKnots !== null) assert.equal(c.maxKmh, round1(c.maxKnots * 1.852), `${c.key} maxKmh`);
+  }
+});
+
+test("data: weather classes carry the twin's keys and the cited values", () => {
+  const d = WeatherImpactClassesSchema.parse(load("weather-impact-classes.json"));
+  const rain = Object.fromEntries(d.rainRate.classes.map((c) => [c.key, c]));
+  assert.equal(rain["rain:light"].maxMmPerHour, 2.5); // AMS: 0.25 cm/h
+  assert.equal(rain["rain:heavy"].minMmPerHour, 7.6); // AMS: over 0.76 cm/h
+  assert.equal(rain["rain:violent"].minMmPerHour, 50); // WMO: violent showers
+  const heat = Object.fromEntries(d.heatIndex.classes.map((c) => [c.key, c]));
+  assert.deepEqual([heat["heat:caution"].minF, heat["heat:extreme"].minF, heat["heat:danger"].minF], [80, 90, 103]);
+  const wind = Object.fromEntries(d.wind.classes.map((c) => [c.key, c]));
+  assert.equal(wind["gust:gale"].force, 7);
+  assert.equal(wind["gust:strong"].force, 9);
 });
