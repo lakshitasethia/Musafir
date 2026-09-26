@@ -10,7 +10,7 @@ import { haversineMeters } from "@/lib/musafir/geo.ts";
 import { DATA_DIR } from "./store.ts";
 import type { NodeCategory } from "@/lib/musafir/schemas.ts";
 
-const USER_AGENT = `Musafir/0.1 (hackathon travel demo${process.env.OSM_CONTACT_EMAIL ? `; ${process.env.OSM_CONTACT_EMAIL}` : ""})`;
+export const USER_AGENT = `Musafir/0.1 (hackathon travel demo${process.env.OSM_CONTACT_EMAIL ? `; ${process.env.OSM_CONTACT_EMAIL}` : ""})`;
 const CACHE_TTL_MS = 60 * 60 * 1000;
 const NOMINATIM_MIN_INTERVAL_MS = 1100;
 
@@ -65,7 +65,7 @@ const worthKeeping = (v: unknown) => (Array.isArray(v) ? v.length > 0 : v !== nu
  * Memory (1 h) → disk (7 days) → network. If the network fails, an older disk
  * entry is served rather than an error: stale place names beat an empty day.
  */
-async function cached<T>(key: string, fn: () => Promise<T>): Promise<T> {
+export async function cached<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const hit = osm.cache.get(key) as CacheEntry<T> | undefined;
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.value;
   const m = await diskMap();
@@ -89,7 +89,7 @@ async function cached<T>(key: string, fn: () => Promise<T>): Promise<T> {
   }
 }
 
-async function fetchJson(url: string, init: RequestInit, timeoutMs: number): Promise<unknown> {
+export async function fetchJson(url: string, init: RequestInit, timeoutMs: number): Promise<unknown> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -232,6 +232,8 @@ export interface VenueCandidate {
   diet?: Record<string, string>;
   /** OSM `stars` tag for accommodation, verbatim; absent when not mapped. */
   stars?: string;
+  /** How well known the place is: Wikidata language editions, or 5 when OSM only links a Wikidata/Wikipedia entry. */
+  notability?: number;
   website?: string;
 }
 
@@ -302,7 +304,7 @@ async function overpassCandidates(center: { lat: number; lng: number }, purpose:
         out.push({
           osmId: `${el.type}/${el.id}`,
           name: tags.name,
-          nameEn: tags["name:en"] && tags["name:en"] !== tags.name ? tags["name:en"] : undefined,
+          nameEn: [tags["name:en"], tags.int_name, tags["name:latin"]].find((n) => n && n !== tags.name),
           ...pos,
           distanceMeters: Math.round(haversineMeters(center, pos)),
           category: purpose === "INDOOR" ? category : purpose,
@@ -315,6 +317,7 @@ async function overpassCandidates(center: { lat: number; lng: number }, purpose:
           diet: dietTags(tags),
           stars: tags.stars,
           website: tags.website ?? tags["contact:website"],
+          notability: tags.wikidata || tags.wikipedia ? 5 : 0,
         });
       }
       return out;
@@ -361,6 +364,7 @@ async function nominatimCandidates(center: { lat: number; lng: number }, purpose
         openingHours: it.extratags?.opening_hours,
         stars: it.extratags?.stars,
         website: it.extratags?.website ?? it.extratags?.["contact:website"],
+        notability: it.extratags?.wikidata || it.extratags?.wikipedia ? 5 : 0,
       });
     }
   }
@@ -380,7 +384,7 @@ export async function nearbyCandidates(
   if (PURPOSE_FILTERS[purpose].length === 0) return [];
   const r = Math.round(Math.min(Math.max(radiusMeters, 100), 3000));
   // Cache by ~110 m grid cell so nearby requests share results.
-  const key = `venues:${purpose}:${center.lat.toFixed(3)}:${center.lng.toFixed(3)}:${r}`;
+  const key = `venues:v3:${purpose}:${center.lat.toFixed(3)}:${center.lng.toFixed(3)}:${r}`;
   return cached(key, async () => {
     let list: VenueCandidate[];
     try {
@@ -585,6 +589,7 @@ interface SparqlRow {
   itemLabel?: { value: string; "xml:lang"?: string };
   loc: { value: string };
   cls: { value: string };
+  sl?: { value: string };
 }
 
 async function wikidataCandidates(center: { lat: number; lng: number }, purpose: CandidatePurpose, r: number): Promise<VenueCandidate[]> {
@@ -592,12 +597,13 @@ async function wikidataCandidates(center: { lat: number; lng: number }, purpose:
   if (classes.length === 0) return [];
   const km = Math.max(0.2, r / 1000).toFixed(2);
   const values = classes.map((c) => `wd:${c.q}`).join(" ");
-  const query = `SELECT ?item ?itemLabel ?loc ?cls WHERE {
+  const query = `SELECT ?item ?itemLabel ?loc ?cls ?sl WHERE {
   SERVICE wikibase:around { ?item wdt:P625 ?loc . bd:serviceParam wikibase:center "Point(${center.lng} ${center.lat})"^^geo:wktLiteral ; wikibase:radius "${km}" . }
   VALUES ?cls { ${values} }
   ?item wdt:P31/wdt:P279* ?cls .
+  OPTIONAL { ?item wikibase:sitelinks ?sl }
   SERVICE wikibase:label { bd:serviceParam wikibase:language "en,[AUTO_LANGUAGE],mul". }
-} LIMIT 80`;
+} ORDER BY DESC(?sl) LIMIT 80`;
   const url = `https://query.wikidata.org/sparql?${new URLSearchParams({ format: "json", query })}`;
   const body = (await fetchJson(url, { headers: WIKI_UA }, 20000)) as { results?: { bindings?: SparqlRow[] } };
   const seen = new Set<string>();
@@ -622,6 +628,7 @@ async function wikidataCandidates(center: { lat: number; lng: number }, purpose:
       isOutdoor: purpose === "INDOOR" ? false : cls.outdoor,
       kind: cls.kind,
       source: "wikidata",
+      notability: Number(row.sl?.value ?? 0),
     });
   }
   return out;
@@ -640,7 +647,7 @@ function categoryFromDescription(text: string): { category: NodeCategory; isOutd
 }
 
 /** Named-place search via Wikipedia (landmarks with coordinates), then cities via Open-Meteo's geocoder. */
-async function openKnowledgeSearch(q: string, near?: { lat: number; lng: number }): Promise<PlaceResult[]> {
+export async function openKnowledgeSearch(q: string, near?: { lat: number; lng: number }): Promise<PlaceResult[]> {
   const wikiParams = new URLSearchParams({
     action: "query",
     generator: "search",

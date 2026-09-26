@@ -7,6 +7,7 @@
  *    (crypto.randomUUID() output always passes).
  */
 import { z } from "zod";
+import { INTERESTS, PARTIES } from "./interests.ts";
 
 export const HHMM_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -73,6 +74,15 @@ export const VibeConfigSchema = z.object({
   budget: z.number().min(0).max(1),
   culturalDepth: z.number().min(0).max(1),
   circadian: z.number().min(0).max(1), // 0: Morning, 1: Night
+  /** The traveller's own words ("slow trip, love forts, no nightlife"). Read by code or the LLM, never executed. */
+  brief: z.string().trim().max(600).optional(),
+  /** Chips from a fixed vocabulary (lib/musafir/interests.ts); the planner scores places against them. */
+  interests: z.array(z.enum(INTERESTS)).max(8).optional(),
+  avoid: z.array(z.enum(INTERESTS)).max(6).optional(),
+  /** Places the traveller insists on; the planner looks each one up and schedules it first. */
+  mustSee: z.array(z.string().trim().min(2).max(80)).max(6).optional(),
+  party: z.enum(PARTIES).optional(),
+  partySize: z.number().int().min(1).max(30).optional(),
 });
 
 export const TripStateSchema = z.object({

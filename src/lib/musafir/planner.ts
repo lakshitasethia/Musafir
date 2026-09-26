@@ -15,6 +15,7 @@
  */
 import { estimateLeg, haversineMeters, type LegEstimate } from "./geo.ts";
 import { osmDietChecker, type DietChecker, type DietStatus } from "./dining.ts";
+import { interestFit } from "./interests.ts";
 import { openStatus } from "./opening-hours.ts";
 import type { ItineraryNode, NodeCategory, VibeConfig } from "./schemas.ts";
 import { fromMinutes, MINUTES_PER_DAY } from "./time.ts";
@@ -34,6 +35,10 @@ export interface PlaceCandidate {
   source: string;
   /** OSM `diet:*` tags for eateries. */
   diet?: Record<string, string>;
+  /** Wikidata language editions (or a small constant when only linked); higher = better known. */
+  notability?: number;
+  /** True when open data had no readable name and the title only says what the place is. */
+  generic?: boolean;
 }
 
 export const BASE_VISIT_MINUTES: Record<NodeCategory, number> = {
@@ -82,16 +87,21 @@ export function scoreCandidate(c: PlaceCandidate, vibe: VibeConfig, center: { la
   const closeness = 1 - Math.min(1, haversineMeters(center, c) / Math.max(1, radiusMeters));
   if (c.category === "DINING") {
     const casual = CASUAL_FOOD.test(c.kind);
-    return 0.4 * closeness + 0.6 * (casual ? 1 - vibe.budget : vibe.budget);
+    return 0.4 * closeness + 0.6 * (casual ? 1 - vibe.budget : vibe.budget) + 0.3 * interestFit(c, vibe.interests ?? [], vibe.avoid ?? []) - (c.generic ? 0.15 : 0);
   }
   const iconic = ICONIC_KINDS.test(c.kind);
   const local = LOCAL_KINDS.test(c.kind);
   const fit = iconic ? 1 - vibe.culturalDepth : local ? vibe.culturalDepth : 0.5;
-  return 0.35 * closeness + 0.55 * fit + (c.category === "NATURE" ? 0.1 : 0);
+  // What the traveller said they like (chips / brief) outweighs the generic iconic-vs-local fit.
+  const likes = interestFit(c, vibe.interests ?? [], vibe.avoid ?? []);
+  // Well-known places matter more to an "iconic" traveller than to a "local" one.
+  const known = Math.min(1, (c.notability ?? 0) / 25) * (1 - vibe.culturalDepth);
+  return 0.3 * closeness + 0.45 * fit + 0.4 * likes + 0.4 * known + (c.category === "NATURE" ? 0.1 : 0) - (c.generic ? 0.15 : 0);
 }
 
 export interface PlanInput {
-  days: { dayIndex: number; date: string }[];
+  /** `startMinute`: the day can't begin before this (e.g. after an inter-city transfer). */
+  days: { dayIndex: number; date: string; startMinute?: number }[];
   candidates: PlaceCandidate[];
   vibe: VibeConfig;
   center: { lat: number; lng: number };
@@ -100,6 +110,8 @@ export interface PlanInput {
   currency?: string;
   /** Optional curator ranking: sourceIds in preferred order; boosts those places. */
   curatedOrder?: string[];
+  /** Must-see sourceIds: each one anchors a day (in this order) even if it's far from the centre. */
+  pinned?: string[];
   idFactory: () => string;
   /** Routed legs between candidates (e.g. OSRM table); falls back to Haversine estimates. */
   leg?: (a: PlaceCandidate, b: PlaceCandidate) => LegEstimate | undefined;
@@ -120,10 +132,14 @@ export function planDays(input: PlanInput): PlannedDay[] {
   // OSM often maps one venue several times ("Albert Hall" / "Albert Hall Museum").
   const kept: PlaceCandidate[] = [];
   for (const c of input.candidates) {
-    const key = normalizeName(c.name);
+    // Generic titles ("Café") are compared by their local name, or every café would look like one venue.
+    const nameOf = (p: PlaceCandidate) => (p.generic ? (p.nameNative ?? p.sourceId) : p.name);
+    const key = normalizeName(nameOf(c));
     if (!key || !Number.isFinite(c.lat) || !Number.isFinite(c.lng) || c.category === "TRANSIT" || c.category === "ACCOMMODATION") continue;
+    // Anything the traveller asked to avoid is never scheduled (not just ranked low) — unless they pinned it.
+    if (interestFit(c, [], input.vibe.avoid ?? []) === -1 && !(input.pinned ?? []).includes(c.sourceId)) continue;
     const dup = kept.some((k) => {
-      const other = normalizeName(k.name);
+      const other = normalizeName(nameOf(k));
       if (other === key) return true;
       if (haversineMeters(k, c) >= DUPLICATE_RADIUS_M) return false;
       const [short, long] = other.length <= key.length ? [other, key] : [key, other];
@@ -153,7 +169,13 @@ export function planDays(input: PlanInput): PlannedDay[] {
     //    neighbours; the most valuable *compact* group wins the day.
     let cluster: PlaceCandidate[] = [];
     let bestValue = -Infinity;
-    for (const seed of sights) {
+    // A must-see still waiting anchors this day; its nearest neighbours fill it.
+    const pin = (input.pinned ?? []).map((id) => sights.find((s) => s.sourceId === id)).find((s) => s !== undefined);
+    if (pin) {
+      cluster = [pin, ...sights.filter((s) => s !== pin).sort((a, b) => haversineMeters(pin, a) - haversineMeters(pin, b) || byScore(a, b))].slice(0, shape.stopsPerDay);
+      bestValue = Infinity;
+    }
+    for (const seed of pin ? [] : sights) {
       const group = [...sights].sort((a, b) => haversineMeters(seed, a) - haversineMeters(seed, b) || byScore(a, b)).slice(0, shape.stopsPerDay);
       const value = group.reduce((v, c) => v + score.get(c.sourceId)! - (CLUSTER_PENALTY_PER_KM * haversineMeters(seed, c)) / 1000, 0);
       if (value > bestValue + 1e-9) {
@@ -165,7 +187,8 @@ export function planDays(input: PlanInput): PlannedDay[] {
     // 2. Order: nearest-neighbour walk starting from the stop closest to the centre.
     const ordered: PlaceCandidate[] = [];
     const pool = [...cluster];
-    let cur = pool.sort((a, b) => haversineMeters(input.center, a) - haversineMeters(input.center, b))[0];
+    const anchor = pin ?? input.center;
+    let cur = pool.sort((a, b) => haversineMeters(anchor, a) - haversineMeters(anchor, b))[0];
     while (cur) {
       ordered.push(cur);
       pool.splice(pool.indexOf(cur), 1);
@@ -174,7 +197,7 @@ export function planDays(input: PlanInput): PlannedDay[] {
     }
     // 3. Time it, inserting meals near the previous stop.
     const nodes: ItineraryNode[] = [];
-    let cursor = shape.dayStart;
+    let cursor = Math.max(shape.dayStart, d.startMinute ?? 0);
     let prev = null as { lat: number; lng: number } | null;
     let hadLunch = false;
     let hadDinner = false;

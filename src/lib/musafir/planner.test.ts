@@ -149,3 +149,21 @@ test("planDays: never schedules a place while its opening hours say closed", () 
   assert.equal(out[0].nodes.find((n) => n.title === "Hours unknown museum")?.metadata?.hours, "unknown");
   assert.match(out[0].note ?? "", /closed then/);
 });
+
+test("a pinned must-see anchors a day even far from the centre", () => {
+  const far = { sourceId: "must", name: "Far Shrine", lat: 34.9672, lng: 135.7727, category: "CULTURE" as const, isOutdoor: true, kind: "musafir=must_see", source: "t" };
+  const nearA = { sourceId: "a", name: "Near A", lat: 35.0116, lng: 135.7681, category: "CULTURE" as const, isOutdoor: false, kind: "tourism=museum", source: "t" };
+  const nearB = { sourceId: "b", name: "Near B", lat: 35.0126, lng: 135.7691, category: "CULTURE" as const, isOutdoor: false, kind: "tourism=museum", source: "t" };
+  let n = 0;
+  const [day] = planDays({
+    days: [{ dayIndex: 1, date: "2026-10-01" }],
+    candidates: [nearA, nearB, far],
+    vibe: { pacing: 0, budget: 0.5, culturalDepth: 0.5, circadian: 0 },
+    center: { lat: 35.0116, lng: 135.7681 },
+    radiusMeters: 3000,
+    city: "Kyoto",
+    pinned: ["must"],
+    idFactory: () => `id-${n++}`,
+  });
+  assert.equal(day.nodes[0].title, "Far Shrine");
+});
