@@ -9,7 +9,7 @@
  */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { newId } from "@/lib/musafir/ids.ts";
 import type { ItineraryNode, VibeConfig } from "@/lib/musafir/schemas.ts";
 import { fromMinutes, MINUTES_PER_DAY, toMinutes } from "@/lib/musafir/time.ts";
@@ -333,9 +333,15 @@ export function PackagesView() {
   const [end, setEnd] = useState(addDays(today, 2));
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const destRef = useRef<HTMLInputElement>(null);
 
   async function choose(p: (typeof PACKAGES)[number]) {
-    if (!destination.trim()) return setErr("Where to? Enter a destination first.");
+    if (!destination.trim()) {
+      // The buttons sit below the form: bring the missing field into view instead of failing silently off-screen.
+      destRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      destRef.current?.focus({ preventScroll: true });
+      return setErr(`Where to? Enter a destination for "${p.title}" first.`);
+    }
     setBusy(p.id);
     setErr(null);
     try {
@@ -356,7 +362,7 @@ export function PackagesView() {
       <div className="mz-panel mz-stack">
         <label className="mz-field">
           <span className="mz-label">Where to?</span>
-          <input className="mz-input" value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="Jaipur, Kyoto, Lisbon…" maxLength={120} />
+          <input ref={destRef} className="mz-input" value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="Jaipur, Kyoto, Lisbon…" maxLength={120} aria-invalid={!!err && !destination.trim()} />
         </label>
         <div className="mz-grid-2">
           <label className="mz-field">

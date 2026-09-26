@@ -22,6 +22,8 @@ import { diffById, graphToTrip, tripToGraph } from "../lib/musafir/graph-mapping
 import { EMPTY_DB, RevConflictError, type ActivityRecord, type Db, type StorageAdapter, type TripRecord } from "./store.ts";
 
 const META_ID = "musafir";
+/** Aura's credentials file names the database (NEO4J_DATABASE); otherwise the server default. */
+const dbName = () => process.env.NEO4J_DATABASE || undefined;
 type Row = Record<string, unknown>;
 
 const g = globalThis as typeof globalThis & { __musafirNeo4j?: { driver: Driver; schema: Promise<void> | null } };
@@ -44,7 +46,7 @@ function explain(e: unknown): Error {
 
 async function ensureSchema(d: Driver) {
   g.__musafirNeo4j!.schema ??= (async () => {
-    const session = d.session();
+    const session = d.session({ database: dbName() });
     try {
       for (const [label, key] of [["User", "id"], ["Trip", "id"], ["Day", "key"], ["Stop", "id"], ["Proposal", "id"], ["Room", "id"], ["Meta", "id"]]) {
         await session.run(`CREATE CONSTRAINT musafir_${label.toLowerCase()}_${key} IF NOT EXISTS FOR (n:${label}) REQUIRE n.${key} IS UNIQUE`);
@@ -171,7 +173,7 @@ export async function neo4jAdapter(): Promise<StorageAdapter & { close(): Promis
   return {
     name: "neo4j",
     async load() {
-      const session = d.session({ defaultAccessMode: neo4j.session.READ });
+      const session = d.session({ database: dbName(), defaultAccessMode: neo4j.session.READ });
       try {
         return await session.executeRead(readAll);
       } catch (e) {
@@ -181,7 +183,7 @@ export async function neo4jAdapter(): Promise<StorageAdapter & { close(): Promis
       }
     },
     async currentRev() {
-      const session = d.session({ defaultAccessMode: neo4j.session.READ });
+      const session = d.session({ database: dbName(), defaultAccessMode: neo4j.session.READ });
       try {
         const r = await session.executeRead((tx) => tx.run("MATCH (m:Meta {id: $id}) RETURN m.rev AS rev", { id: META_ID }));
         return Number(r.records[0]?.get("rev") ?? 0);
@@ -192,7 +194,7 @@ export async function neo4jAdapter(): Promise<StorageAdapter & { close(): Promis
       }
     },
     async persist(prev, next, expectedRev) {
-      const session = d.session({ defaultAccessMode: neo4j.session.WRITE });
+      const session = d.session({ database: dbName(), defaultAccessMode: neo4j.session.WRITE });
       try {
         return await session.executeWrite(async (tx) => {
           // SET takes the write lock on Meta first, so concurrent writers queue here.

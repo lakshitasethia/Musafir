@@ -11,13 +11,15 @@
 import { z } from "zod";
 import { newId } from "@/lib/musafir/ids.ts";
 import { planDays, scoreCandidate, type PlaceCandidate } from "@/lib/musafir/planner.ts";
-import { applyPatches } from "@/lib/musafir/reducer.ts";
-import type { TripPatch } from "@/lib/musafir/schemas.ts";
+import { applyPatches, heal, policyFromVibe } from "@/lib/musafir/reducer.ts";
+import type { DaySchedule, TripPatch } from "@/lib/musafir/schemas.ts";
+import { fromMinutes, toMinutes } from "@/lib/musafir/time.ts";
 import { publish } from "./events.ts";
 import { llmJson } from "./llm.ts";
 import { nearbyCandidates, searchPlaces, type CandidatePurpose } from "./osm.ts";
 import { cachedLeg, routedLookup, warmLegs } from "./routing.ts";
 import { read, write, type TripRecord } from "./store.ts";
+import { rainWindows } from "./weather.ts";
 
 const SEARCH_RADIUS_M = 3000;
 const PURPOSES: CandidatePurpose[] = ["CULTURE", "NATURE", "LEISURE", "DINING"];
@@ -105,21 +107,43 @@ export async function runPlanner(tripId: string): Promise<void> {
     const emptyDays = rec.trip.schedule.filter((d) => d.nodes.length === 0).map((d) => ({ dayIndex: d.dayIndex, date: d.date }));
     const planned = planDays({ days: emptyDays, candidates, vibe, center, radiusMeters: SEARCH_RADIUS_M, city, curatedOrder, idFactory: newId, leg: cachedLeg, dietary: rec.trip.dietaryRestrictions });
 
+    // Build each drafted day, then keep outdoor stops out of *forecast* rain (days within Open-Meteo's
+    // ~16-day horizon) by running the same deterministic heal() the rain simulator uses. No LLM involved.
+    await setPlanner(tripId, { status: "RUNNING", note: "Checking the forecast for each day…", at: at() });
+    const policy = policyFromVibe(vibe);
+    const drafted = new Map<number, { day: DaySchedule; rainNote?: string }>();
+    for (const p of planned) {
+      const base = rec.trip.schedule.find((d) => d.dayIndex === p.dayIndex);
+      if (!base || p.nodes.length === 0) continue;
+      const inserts: TripPatch[] = p.nodes.map((payload) => ({ patchId: newId(), targetDayIndex: p.dayIndex, operation: "INSERT", payload, reason: `Planned "${payload.title}"` }));
+      let day = applyPatches(base, inserts, { routed: routedLookup });
+      const forecast = await rainWindows(center.lat, center.lng, base.date).catch(() => null);
+      let moved = 0;
+      let dropped = 0;
+      for (const w of forecast?.available ? forecast.windows : []) {
+        const hit = day.nodes.some((n) => n.isOutdoor && toMinutes(n.timeSlot.start) < w.toMinute && toMinutes(n.timeSlot.start) + n.timeSlot.durationMinutes > w.fromMinute);
+        if (!hit) continue;
+        const r = heal(day, { kind: "WEATHER", fromMinute: w.fromMinute, toMinute: w.toMinute, reason: "Forecast rain" }, { policy, routed: routedLookup });
+        moved += r.patches.filter((x) => x.operation !== "REMOVE").length;
+        dropped += r.patches.filter((x) => x.operation === "REMOVE").length;
+        day = r.preview;
+      }
+      const windows = forecast?.available ? forecast.windows.map((w) => `${fromMinutes(w.fromMinute)}–${w.toMinute >= 1440 ? "24:00" : fromMinutes(w.toMinute)}`).join(", ") : "";
+      drafted.set(p.dayIndex, {
+        day,
+        rainNote: moved + dropped > 0 ? `rain forecast ${windows}: rescheduled ${moved}${dropped ? `, skipped ${dropped} outdoor stop${dropped > 1 ? "s" : ""}` : ""}` : undefined,
+      });
+    }
+
     const summary = await write((db) => {
       const cur = db.trips.find((t) => t.trip.id === tripId);
       if (!cur) return null;
       let filled = 0;
       for (const p of planned) {
         const day = cur.trip.schedule.find((d) => d.dayIndex === p.dayIndex);
-        if (!day || day.nodes.length > 0 || p.nodes.length === 0) continue; // user edited meanwhile, or nothing found
-        const patches: TripPatch[] = p.nodes.map((payload) => ({
-          patchId: newId(),
-          targetDayIndex: p.dayIndex,
-          operation: "INSERT",
-          payload,
-          reason: `Planned "${payload.title}"`,
-        }));
-        const next = applyPatches(day, patches, { routed: routedLookup });
+        const draft = drafted.get(p.dayIndex);
+        if (!day || day.nodes.length > 0 || !draft || draft.day.nodes.length === 0) continue; // user edited meanwhile, or nothing found
+        const next = draft.day;
         cur.trip.schedule = cur.trip.schedule.map((d) => (d.dayIndex === p.dayIndex ? next : d));
         filled++;
         db.activity.push({
@@ -127,7 +151,7 @@ export async function runPlanner(tripId: string): Promise<void> {
           tripId,
           at: new Date().toISOString(),
           actor: "planner agent",
-          message: `Planned day ${p.dayIndex}: ${p.nodes.map((n) => n.title).join(" → ")}${p.note ? ` (${p.note})` : ""}`,
+          message: `Planned day ${p.dayIndex}: ${draft.day.nodes.map((n) => n.title).join(" → ")}${[p.note, draft.rainNote].filter(Boolean).length ? ` (${[p.note, draft.rainNote].filter(Boolean).join("; ")})` : ""}`,
         });
       }
       if (filled > 0) {

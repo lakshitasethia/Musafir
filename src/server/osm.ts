@@ -191,7 +191,7 @@ export async function searchPlaces(query: string, near?: { lat: number; lng: num
         };
       });
     }),
-      () => photonSearch(q, near),
+      () => withFallback(() => photonSearch(q, near), () => openKnowledgeSearch(q, near)),
     ),
   );
 }
@@ -227,7 +227,7 @@ export interface VenueCandidate {
   cuisine?: string;
   kind: string;
   /** Which open-data service produced this candidate. */
-  source: "overpass" | "nominatim" | "photon";
+  source: "overpass" | "nominatim" | "photon" | "wikidata";
   /** OSM `diet:*` tags, verbatim (e.g. { "diet:vegetarian": "yes" }). */
   diet?: Record<string, string>;
   /** OSM `stars` tag for accommodation, verbatim; absent when not mapped. */
@@ -257,6 +257,10 @@ const OVERPASS_URLS = (process.env.OVERPASS_URLS || "https://overpass-api.de/api
   .split(",")
   .map((u) => u.trim())
   .filter(Boolean);
+
+const LANDMARK_PURPOSES = new Set<CandidatePurpose>(["CULTURE", "NATURE", "LEISURE"]);
+/** Fewer Wikidata hits than this and we still ask Nominatim (thin coverage in some towns). */
+const MIN_USEFUL_RESULTS = 5;
 
 /** Keyword searches used when every Overpass instance is unreachable. */
 const NOMINATIM_KEYWORDS: Record<CandidatePurpose, string[]> = {
@@ -354,6 +358,7 @@ async function nominatimCandidates(center: { lat: number; lng: number }, purpose
         kind: `${cls}=${it.type}`,
         source: "nominatim",
         diet: dietTags(it.extratags),
+        openingHours: it.extratags?.opening_hours,
         stars: it.extratags?.stars,
         website: it.extratags?.website ?? it.extratags?.["contact:website"],
       });
@@ -381,12 +386,28 @@ export async function nearbyCandidates(
     try {
       list = await overpassCandidates(center, purpose, r);
     } catch (overpassError) {
+      // Landmark-type lookups go to Wikidata before hammering Nominatim with keyword sweeps
+      // (Nominatim's policy discourages bulk POI queries); food/hotels keep Nominatim's better coverage.
+      if (LANDMARK_PURPOSES.has(purpose)) {
+        try {
+          const wiki = await wikidataCandidates(center, purpose, r);
+          if (wiki.length >= MIN_USEFUL_RESULTS) return wiki.sort((a, b) => a.distanceMeters - b.distanceMeters);
+        } catch {
+          /* fall through to Nominatim */
+        }
+      }
       try {
         list = await nominatimCandidates(center, purpose, r);
       } catch (nominatimError) {
         try {
           list = await photonCandidates(center, purpose, r);
         } catch (photonError) {
+          try {
+            list = await wikidataCandidates(center, purpose, r);
+            return list.sort((a, b) => a.distanceMeters - b.distanceMeters);
+          } catch {
+            /* fall through to the most useful error */
+          }
           const limited = [nominatimError, photonError].find((e) => e instanceof RateLimitError);
           if (limited) throw limited;
           throw new Error(
@@ -516,4 +537,143 @@ async function photonReverse(lat: number, lng: number): Promise<{ localAddress: 
   if (!p) return null;
   const localAddress = [p.name, p.housenumber, p.street, p.district, photonCity(p), p.country].filter(Boolean).join(", ");
   return localAddress ? { localAddress, localName: p.name ? String(p.name) : undefined } : null;
+}
+
+// ── Open knowledge (last tier): Wikidata, Wikipedia, Open-Meteo geocoding. ──
+// Real, community-maintained data (OSM's sister projects), keyless, reachable on
+// networks that block OSM mirrors. Coverage of restaurants/hotels is thinner than
+// OSM, so this tier only runs when every OSM source has failed.
+const WIKI_UA = { "User-Agent": USER_AGENT, Accept: "application/sparql-results+json" };
+
+/** Wikidata classes per purpose (instance-of, including subclasses). */
+const WIKIDATA_CLASSES: Record<CandidatePurpose, { q: string; category: NodeCategory; outdoor: boolean; kind: string }[]> = {
+  INDOOR: [
+    { q: "Q33506", category: "CULTURE", outdoor: false, kind: "tourism=museum" },
+    { q: "Q7075", category: "CULTURE", outdoor: false, kind: "amenity=library" },
+    { q: "Q41253", category: "LEISURE", outdoor: false, kind: "amenity=cinema" },
+    { q: "Q11315", category: "LEISURE", outdoor: false, kind: "shop=mall" },
+    { q: "Q30022", category: "DINING", outdoor: false, kind: "amenity=cafe" },
+  ],
+  CULTURE: [
+    { q: "Q33506", category: "CULTURE", outdoor: false, kind: "tourism=museum" },
+    { q: "Q57831", category: "CULTURE", outdoor: true, kind: "historic=fort" },
+    { q: "Q16560", category: "CULTURE", outdoor: false, kind: "historic=palace" },
+    { q: "Q44539", category: "CULTURE", outdoor: false, kind: "historic=temple" },
+    { q: "Q4989906", category: "CULTURE", outdoor: true, kind: "historic=monument" },
+    { q: "Q570116", category: "CULTURE", outdoor: true, kind: "tourism=attraction" },
+  ],
+  DINING: [
+    { q: "Q11707", category: "DINING", outdoor: false, kind: "amenity=restaurant" },
+    { q: "Q30022", category: "DINING", outdoor: false, kind: "amenity=cafe" },
+  ],
+  NATURE: [
+    { q: "Q22698", category: "NATURE", outdoor: true, kind: "leisure=park" },
+    { q: "Q1107656", category: "NATURE", outdoor: true, kind: "leisure=garden" },
+    { q: "Q23397", category: "NATURE", outdoor: true, kind: "natural=water" },
+  ],
+  LEISURE: [
+    { q: "Q22698", category: "LEISURE", outdoor: true, kind: "leisure=park" },
+    { q: "Q41253", category: "LEISURE", outdoor: false, kind: "amenity=cinema" },
+    { q: "Q11315", category: "LEISURE", outdoor: false, kind: "shop=mall" },
+  ],
+  ACCOMMODATION: [{ q: "Q27686", category: "ACCOMMODATION", outdoor: false, kind: "tourism=hotel" }],
+  TRANSIT: [],
+};
+
+interface SparqlRow {
+  item: { value: string };
+  itemLabel?: { value: string; "xml:lang"?: string };
+  loc: { value: string };
+  cls: { value: string };
+}
+
+async function wikidataCandidates(center: { lat: number; lng: number }, purpose: CandidatePurpose, r: number): Promise<VenueCandidate[]> {
+  const classes = WIKIDATA_CLASSES[purpose];
+  if (classes.length === 0) return [];
+  const km = Math.max(0.2, r / 1000).toFixed(2);
+  const values = classes.map((c) => `wd:${c.q}`).join(" ");
+  const query = `SELECT ?item ?itemLabel ?loc ?cls WHERE {
+  SERVICE wikibase:around { ?item wdt:P625 ?loc . bd:serviceParam wikibase:center "Point(${center.lng} ${center.lat})"^^geo:wktLiteral ; wikibase:radius "${km}" . }
+  VALUES ?cls { ${values} }
+  ?item wdt:P31/wdt:P279* ?cls .
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "en,[AUTO_LANGUAGE],mul". }
+} LIMIT 80`;
+  const url = `https://query.wikidata.org/sparql?${new URLSearchParams({ format: "json", query })}`;
+  const body = (await fetchJson(url, { headers: WIKI_UA }, 20000)) as { results?: { bindings?: SparqlRow[] } };
+  const seen = new Set<string>();
+  const out: VenueCandidate[] = [];
+  for (const row of body.results?.bindings ?? []) {
+    const m = /Point\(([-\d.]+) ([-\d.]+)\)/.exec(row.loc.value);
+    const name = row.itemLabel?.value ?? "";
+    const qid = row.item.value.split("/").pop() ?? "";
+    // Unlabelled items come back as their Q-id — never show those as a place name.
+    if (!m || !name || /^Q\d+$/.test(name) || seen.has(qid)) continue;
+    seen.add(qid);
+    const pos = { lat: Number(m[2]), lng: Number(m[1]) };
+    const cls = classes.find((c) => row.cls.value.endsWith(`/${c.q}`)) ?? classes[0];
+    const distanceMeters = Math.round(haversineMeters(center, pos));
+    if (distanceMeters > r) continue;
+    out.push({
+      osmId: `wikidata/${qid}`,
+      name,
+      ...pos,
+      distanceMeters,
+      category: purpose === "INDOOR" ? cls.category : purpose === "ACCOMMODATION" || purpose === "DINING" ? purpose : cls.category,
+      isOutdoor: purpose === "INDOOR" ? false : cls.outdoor,
+      kind: cls.kind,
+      source: "wikidata",
+    });
+  }
+  return out;
+}
+
+/** Keyword → category for Wikipedia results (their descriptions are short phrases like "palace in Jaipur, India"). */
+function categoryFromDescription(text: string): { category: NodeCategory; isOutdoor: boolean } {
+  const t = text.toLowerCase();
+  if (/hotel|resort|hostel|guest ?house/.test(t)) return { category: "ACCOMMODATION", isOutdoor: false };
+  if (/restaurant|cafe|café|eatery|food/.test(t)) return { category: "DINING", isOutdoor: false };
+  if (/park|garden|lake|hill|forest|zoo/.test(t)) return { category: "NATURE", isOutdoor: true };
+  if (/station|airport|terminal/.test(t)) return { category: "TRANSIT", isOutdoor: false };
+  if (/fort|monument|observatory|stepwell|ruins?/.test(t)) return { category: "CULTURE", isOutdoor: true };
+  if (/museum|palace|temple|mosque|church|gallery|mahal|haveli|historic/.test(t)) return { category: "CULTURE", isOutdoor: false };
+  return { category: "LEISURE", isOutdoor: false };
+}
+
+/** Named-place search via Wikipedia (landmarks with coordinates), then cities via Open-Meteo's geocoder. */
+async function openKnowledgeSearch(q: string, near?: { lat: number; lng: number }): Promise<PlaceResult[]> {
+  const wikiParams = new URLSearchParams({
+    action: "query",
+    generator: "search",
+    gsrsearch: q,
+    gsrlimit: "8",
+    prop: "coordinates|description",
+    format: "json",
+    formatversion: "2",
+  });
+  const wiki = (await fetchJson(`https://en.wikipedia.org/w/api.php?${wikiParams}`, { headers: WIKI_UA }, 10000).catch(() => null)) as {
+    query?: { pages?: { title: string; index: number; description?: string; coordinates?: { lat: number; lon: number }[] }[] };
+  } | null;
+  const places: PlaceResult[] = (wiki?.query?.pages ?? [])
+    .filter((p) => p.coordinates?.length)
+    .sort((a, b) => a.index - b.index)
+    .map((p) => {
+      const { category, isOutdoor } = categoryFromDescription(`${p.title} ${p.description ?? ""}`);
+      const c = p.coordinates![0];
+      return { displayName: [p.title, p.description].filter(Boolean).join(" — "), name: p.title, lat: c.lat, lng: c.lon, city: "", category, isOutdoor };
+    });
+  if (near) places.sort((a, b) => haversineMeters(near, a) - haversineMeters(near, b));
+  if (places.length) return places.slice(0, 6);
+
+  const geo = (await fetchJson(`https://geocoding-api.open-meteo.com/v1/search?${new URLSearchParams({ name: q, count: "6", language: "en" })}`, {}, 8000)) as {
+    results?: { name: string; latitude: number; longitude: number; admin1?: string; country?: string }[];
+  };
+  return (geo.results ?? []).map((g) => ({
+    displayName: [g.name, g.admin1, g.country].filter(Boolean).join(", "),
+    name: g.name,
+    lat: g.latitude,
+    lng: g.longitude,
+    city: g.name,
+    category: "LEISURE" as NodeCategory,
+    isOutdoor: false,
+  }));
 }

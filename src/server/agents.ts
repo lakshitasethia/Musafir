@@ -17,6 +17,9 @@ import { newId } from "@/lib/musafir/ids.ts";
 import { MIN_CLUSTER_SAVING_MIN, pickClusterReplacement } from "@/lib/musafir/cluster.ts";
 import { estimateLeg } from "@/lib/musafir/geo.ts";
 import { applyPatches } from "@/lib/musafir/reducer.ts";
+import { openStatus } from "@/lib/musafir/opening-hours.ts";
+import { rankReplacements, stopsNeedingReplacement } from "@/lib/musafir/resolver.ts";
+import { toMinutes } from "@/lib/musafir/time.ts";
 import { classifyRisk } from "@/lib/musafir/risk.ts";
 import type { DaySchedule, ItineraryNode, TripPatch } from "@/lib/musafir/schemas.ts";
 import { publish } from "./events.ts";
@@ -124,53 +127,69 @@ export async function runAlternativeAgent(proposalId: string): Promise<void> {
   });
   if (!start) return;
   const { p, rec } = start;
-  if (p.disruption.kind !== "CLOSURE" && p.disruption.kind !== "WEATHER") return;
+  const kind = p.disruption.kind;
+  if (kind !== "CLOSURE" && kind !== "WEATHER") return;
+  const day0 = rec.trip.schedule.find((d) => d.dayIndex === p.dayIndex);
+  const engine = p.options.find((o) => o.source === "engine");
+  // Only look for replacements when a stop was actually lost — not when the engine simply moved it.
+  const needed = day0 ? stopsNeedingReplacement(kind, p.affectedNodeIds, engine?.patches ?? [], day0.nodes) : [];
+  if (needed.length === 0) return;
 
-  await setAgentState(p.id, p.tripId, { agentStatus: "RUNNING", agentNote: "Searching OpenStreetMap within 800 m…" });
+  await setAgentState(p.id, p.tripId, { agentStatus: "RUNNING", agentNote: "Searching real places within 800 m…" });
   try {
-    const day = rec.trip.schedule.find((d) => d.dayIndex === p.dayIndex);
-    if (!day) throw new Error("day no longer exists");
-    const why = p.disruption.kind === "WEATHER" ? "Rain" : "Venue closed";
-    const targets = p.affectedNodeIds
+    const day = day0!;
+    const why = kind === "WEATHER" ? "Rain" : "Venue closed";
+    const targets = needed
       .map((id) => day.nodes.find((n) => n.id === id))
-      .filter((n): n is ItineraryNode => !!n && n.type === "SOFT")
+      .filter((n): n is ItineraryNode => !!n)
       .slice(0, MAX_TARGETS);
-    if (targets.length === 0) {
-      await setAgentState(p.id, p.tripId, { agentStatus: "DONE", agentNote: "No flexible stop to replace." });
-      return;
-    }
 
-    const options: ProposalOption[] = [];
-    const notes: string[] = [];
-    for (const node of targets) {
-      const purpose = p.disruption.kind === "WEATHER" ? "INDOOR" : node.category;
-      const all = await nearbyCandidates(node.location, purpose, SEARCH_RADIUS_M);
-      const candidates = all
-        .filter((c) => c.name !== node.title && c.nameEn !== node.title && c.name !== node.nativeTitle && c.distanceMeters > 25)
-        .slice(0, MAX_CANDIDATES);
-      if (candidates.length === 0) {
-        notes.push(`No ${purpose === "INDOOR" ? "indoor" : purpose.toLowerCase()} venues found near "${node.title}".`);
-        continue;
-      }
-      const pick = await rank(node, day, candidates, why, {
-        dietary: rec.trip.dietaryRestrictions,
-        budget: rec.trip.vibeConfig.budget,
-        culturalDepth: rec.trip.vibeConfig.culturalDepth,
-      });
-      const chosen = candidates[pick.index];
-      const patches = replacementPatches(day, node, chosen, why);
-      applyPatches(day, patches); // validate before offering
-      options.push({
-        id: newId(),
-        label: `Swap "${node.title}" for ${chosen.nameEn ?? chosen.name} (${chosen.distanceMeters} m)`,
-        source: "agent",
-        patches,
-        conflicts: [],
-        risk: classifyRisk(day, patches, [], rec.autonomy),
-        rankedBy: pick.rankedBy,
-        rationale: pick.rationale,
-      });
-    }
+    // Independent lookups run in parallel; one failing never sinks the others.
+    const settled = await Promise.allSettled(
+      targets.map(async (node): Promise<{ option?: ProposalOption; note?: string }> => {
+        const purpose = kind === "WEATHER" ? "INDOOR" : node.category;
+        const all = await nearbyCandidates(node.location, purpose, SEARCH_RADIUS_M);
+        const nearby = all.filter((c) => c.name !== node.title && c.nameEn !== node.title && c.name !== node.nativeTitle && c.distanceMeters > 25);
+        const { ranked, ambiguous } = rankReplacements(nearby, node, {
+          date: day.date,
+          wantCategory: kind === "CLOSURE" ? node.category : undefined,
+          dietary: rec.trip.dietaryRestrictions,
+        });
+        if (ranked.length === 0) return { note: `No ${purpose === "INDOOR" ? "indoor" : purpose.toLowerCase()} place near "${node.title}" is open then.` };
+        let chosen = ranked[0];
+        let rankedBy = "open-data score (open at that time, purpose, distance)";
+        let rationale = `${chosen.hours === "open" ? "Open at that time per OpenStreetMap hours" : "Opening hours not listed — check before going"}; ${chosen.candidate.distanceMeters} m away.`;
+        if (ambiguous) {
+          // A genuine tie on open data: let the LLM weigh the names against the traveller's vibe.
+          const top = ranked.slice(0, MAX_CANDIDATES).map((r) => r.candidate);
+          const pick = await rank(node, day, top, why, {
+            dietary: rec.trip.dietaryRestrictions,
+            budget: rec.trip.vibeConfig.budget,
+            culturalDepth: rec.trip.vibeConfig.culturalDepth,
+          });
+          chosen = ranked[pick.index] ?? chosen;
+          rankedBy = pick.rankedBy.startsWith("llm:") ? `tie broken by ${pick.rankedBy}` : rankedBy;
+          if (pick.rankedBy.startsWith("llm:")) rationale = pick.rationale;
+        }
+        const venue = chosen.candidate;
+        const patches = replacementPatches(day, node, venue, why);
+        applyPatches(day, patches); // validate before offering
+        return {
+          option: {
+            id: newId(),
+            label: `Swap "${node.title}" for ${venue.nameEn ?? venue.name} (${venue.distanceMeters} m${chosen.hours === "unknown" ? ", hours unknown" : ""})`,
+            source: "agent",
+            patches,
+            conflicts: [],
+            risk: classifyRisk(day, patches, [], rec.autonomy),
+            rankedBy,
+            rationale,
+          },
+        };
+      }),
+    );
+    const options = settled.flatMap((r) => (r.status === "fulfilled" && r.value.option ? [r.value.option] : []));
+    const notes = settled.flatMap((r) => (r.status === "fulfilled" ? (r.value.note ? [r.value.note] : []) : [`Lookup failed: ${(r.reason as Error).message}`]));
 
     const note = [options.length ? `Found ${options.length} alternative${options.length > 1 ? "s" : ""}.` : "", ...notes].filter(Boolean).join(" ");
     const created = await write((db) => {
@@ -248,7 +267,11 @@ export async function runClusterAgent(proposalId: string): Promise<void> {
     const next = day.nodes[idx + 1];
 
     await setAgentState(p.id, p.tripId, { agentStatus: "RUNNING", agentNote: `Searching near "${prev.title}"…` });
-    const venues = (await nearbyCandidates(prev.location, target.category, CLUSTER_RADIUS_M)).slice(0, CLUSTER_MAX_CANDIDATES);
+    const slotStart = toMinutes(target.timeSlot.start);
+    // Never suggest a place that is closed during the stop's time slot.
+    const venues = (await nearbyCandidates(prev.location, target.category, CLUSTER_RADIUS_M))
+      .filter((v) => openStatus(v.openingHours, day.date, slotStart, slotStart + target.timeSlot.durationMinutes) !== "closed")
+      .slice(0, CLUSTER_MAX_CANDIDATES);
     const candidates = venues.map((v) => ({ id: v.osmId, name: v.nameEn ?? v.name, lat: v.lat, lng: v.lng, venue: v }));
     await warmLegs([prev.location, target.location, ...(next ? [next.location] : []), ...candidates]).catch(() => undefined);
     const minutes = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => cachedLeg(a, b)?.durationMinutes ?? estimateLeg(a, b).durationMinutes;

@@ -55,6 +55,8 @@ export function CommuteMap({ day, onCluster }: { day: DaySchedule; onCluster?: (
   const mapRef = useRef<MapLibreMap | null>(null);
   const markersRef = useRef<Marker[]>([]);
   const clusterRef = useRef(onCluster);
+  // Markers and zoom need only the map object; the coloured legs need the style loaded.
+  const [mapOn, setMapOn] = useState(false);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState<string | null>(() => (webglAvailable() ? null : "WebGL is unavailable on this device"));
 
@@ -73,6 +75,7 @@ export function CommuteMap({ day, onCluster }: { day: DaySchedule; onCluster?: (
       return;
     }
     mapRef.current = map;
+    queueMicrotask(() => setMapOn(true));
     map.addControl(new NavigationControl({ showCompass: false }), "top-right");
     map.on("error", (e) => {
       if (!map.isStyleLoaded()) setFailed(e.error?.message ?? "Map tiles couldn't load");
@@ -100,15 +103,23 @@ export function CommuteMap({ day, onCluster }: { day: DaySchedule; onCluster?: (
       map.remove();
       mapRef.current = null;
       setReady(false);
+      setMapOn(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- create the map once
   }, []);
 
+  // Legs: once the style (and its source) exist.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
     const src = map.getSource("legs") as { setData?: (d: unknown) => void } | undefined;
     src?.setData?.(legsGeoJSON(day));
+  }, [day, ready]);
+
+  // Markers + zoom: immediately, even while tiles are still loading on a slow network.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapOn) return;
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = day.nodes.map((n, i) => {
       const el = document.createElement("div");
@@ -120,9 +131,9 @@ export function CommuteMap({ day, onCluster }: { day: DaySchedule; onCluster?: (
     if (day.nodes.length > 0) {
       const b = new LngLatBounds();
       day.nodes.forEach((n) => b.extend([n.location.lng, n.location.lat]));
-      map.fitBounds(b, { padding: 48, maxZoom: 15, duration: 600 });
+      map.fitBounds(b, { padding: 48, maxZoom: 15, duration: 0 });
     }
-  }, [day, ready]);
+  }, [day, mapOn]);
 
   if (failed) return <div className="mz-empty">Map unavailable: {failed}. The journey view has the same information.</div>;
   return (

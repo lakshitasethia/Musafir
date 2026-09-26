@@ -37,6 +37,7 @@ npm test        # node --test with type stripping (Node >= 22.6), ~1 s, no build
 npx tsc --noEmit
 npm run lint
 npm run build   # run before every merge to main
+npm run check:e2e   # 52 end-to-end feature checks against a running server (npm start first); writes labelled test data
 ```
 
 **Conventions**
@@ -44,7 +45,7 @@ npm run build   # run before every merge to main
 - `src/lib/musafir` must stay pure: no `next/*`, `fs`, or `fetch`, except the injectable `fetchImpl` in `geo.ts`.
 - `"use client"` files must never import from `src/server`. Type-only imports (`import type`) are fine.
 - Next 16: `params` and `cookies()` are async, `middleware` is now `proxy`, and background work after a response uses `after()`. Read `node_modules/next/dist/docs/` before using an unfamiliar API (see AGENTS.md).
-- Env vars go in `.env.local` (template: `.env.example`). All are optional in dev. `AUTH_SECRET` is required in production. Use `||`, not `??`, for env defaults, so empty strings fall back.
+- Env vars go in `.env.local` (template: `.env.example`). **Never put real values in `.env.example`** — it is committed; `.env.local` is git-ignored. Share keys with teammates privately, not through git. All are optional in dev. `AUTH_SECRET` is required in production. Use `||`, not `??`, for env defaults, so empty strings fall back.
 - Local data lives in `.data/` (gitignored): users, trips, dev secret.
 - **Storage is an adapter** (`src/server/store.ts`): the JSON file store by default; **Neo4j graph database** when `NEO4J_URI`/`NEO4J_USERNAME`/`NEO4J_PASSWORD` are set (`src/server/store-neo4j.ts`, mapping in `src/lib/musafir/graph-mapping.ts`). Callers only use `read`/`write`; `write` callbacks must be side-effect free (they may re-run on a cross-instance conflict). Import existing data once with `npm run db:import-neo4j`.
 - **No login needed for travellers**: traveller pages start a guest session automatically (`/api/auth/guest`); "Save my trips" upgrades the guest in place. Operator pages require a real operator login.
@@ -141,8 +142,8 @@ LLM calls go only through `src/server/llm.ts`:
 | Critic / Auditor | Keep, **as code** | `applyPatches`, `classifyRisk`, `heal`. Contract `lib/musafir/auditor-contract.ts`, registry `server/auditors.ts` (empty until Parth's `auditors/*` land); findings shown per day |
 | Synthesizer | Words only (headline/rationale), template fallback | Rationale in Resolver; headlines are templates |
 | Sentinel / Watchdog | Keep, **zero-LLM**. **Vercel Hobby cron = once/day** (verified 2026-09-26), so trigger it on trip-page open (every 10 min), from a GitHub Actions schedule → `/api/sentinel`, and from the manual forecast check | **Built**: `lib/musafir/sentinel.ts` + `server/sentinel.ts`, destination-local clock, dedupe, per-trip rate limit; `/api/sentinel` (session or `SENTINEL_SECRET`); trip page polls every 10 min. GitHub Actions schedule = Parth |
-| Discovery & Venue Specialist | Keep | **Built**: OSM within 3 km, vibe score, LLM curator (index-only), dedupe of OSM duplicates |
-| Disruption Resolver | Keep | **Built**: real venues ≤ 800 m, LLM picks 1 of 3 (or nearest, labelled), REMOVE+INSERT |
+| Discovery & Venue Specialist | Keep | **Built**: OSM within 3 km, vibe score, LLM curator (index-only), dedupe of OSM duplicates; never schedules a place in a slot its `opening_hours` exclude (`lib/musafir/opening-hours.ts`); days inside the forecast horizon are pre-healed for rain with the same `heal()` |
+| Disruption Resolver | Keep | **Built**: runs only when a stop was actually lost (`lib/musafir/resolver.ts` gate: CLOSURE, or WEATHER stops the engine REMOVEd). Real venues ≤ 800 m ranked by code (open then per OSM hours, purpose, distance); LLM only breaks a genuine tie (score gap < 0.1). Targets in parallel, REMOVE+INSERT |
 | Dining & Dietary Matcher | Keep, narrowed | **Built**: `lib/musafir/dining.ts` + planner meals + group-room options; OSM `diet:*` tags captured; injectable checker defaults to "unverified" until Parth's `diet.ts` |
 | Pacing & Fatigue Auditor | Keep, pure code | Leg/day fatigue **built** in `geo.ts`; auditor with rest buffers + Open-Meteo heat/UV/elevation **not built** |
 | Logistics & Transit | Keep, narrowed | **Built**: OSRM table (≤1 req/s, cached) warmed before every write and used by engine + planner (`server/routing.ts`), Haversine fallback. Transitland needs a key. **Rejected:** hardcoded rail-pass rules |
@@ -199,8 +200,10 @@ Proposals (`store.ts` `ProposalRecord`) carry `baseVersion`, options with a serv
 
 ## 9. Status
 
-**Built and verified** (59 unit tests; API smoke tests; browser pass incl. WebGL map, server-down offline test, guest flow):
+**Built and verified** (67 unit tests; 54/54 end-to-end checks on Neo4j + Groq on 2026-09-26, incl. role-isolation checks; API smoke tests; browser pass incl. WebGL map, server-down offline test, guest flow):
 - **No-login use**: guest traveller sessions on first visit; upgrade on sign-up keeps trips. Operators log in.
+- **Role isolation**: every mutation re-checks role + ownership server-side (`trips.ts`, `microedit.ts`, `requireUser(role)`); travellers never receive the autonomy policy or operators' names (shown as "your operator"); operator sign-up needs `OPERATOR_INVITE_CODE` (constant-time compare), disabled in production without it.
+- **Opening hours** respected by planner, Resolver, Cluster Nearby and group-vote options (unknown hours allowed, labelled).
 - Landing nav: PLAN · FLIGHTS · HOTELS · PACKAGES; app top bar: HOME · TRIPS · FLIGHTS · HOTELS · PACKAGES (operators: HOME · OPERATIONS)
 - Trip creation with Vibe faders + diet → **planner agent** drafts every empty day (OSM places, OSRM travel times, diet-aware meals)
 - **Packages**: preset travel styles → one tap creates and plans a trip
@@ -212,7 +215,8 @@ Proposals (`store.ts` `ProposalRecord`) carry `baseVersion`, options with a serv
 - MapLibre commute map; Tier 2 operator quick edits; offline IndexedDB + service worker + Taxi Rescue card (Lakshita's `TaxiCard`); Group Vibe Check rooms
 - Lakshita's UI integrated: `ActionRibbon`, `TaxiCard`, dark torn-edge simulator band (`.mz-simulator`), `SectionHeader`
 - App-wide motion (`_components/SmoothScroll.tsx`): Lenis + GSAP ScrollTrigger reveals/parallax on every app page, like the landing
-- Neo4j storage adapter + import script (**not yet run against a real Neo4j** — needs credentials)
+- Neo4j storage adapter + import script — **verified 2026-09-26 against Aura** (import of local data identical field-for-field; create/edit/heal persisted across a server restart). Honours `NEO4J_DATABASE`.
+- LLM path **verified live**: Groq `openai/gpt-oss-20b` / `-120b` available; gateway call ~0.5–0.8 s. Gemini key valid (`gemini-3.8-flash` listed) but returned a temporary 503 "high demand" during testing.
 
 **Not built / limits:**
 - Parth: `auditors/*`, `src/data/*` verified datasets (KnowCard facts, translated "take me here" phrase), GitHub Actions sentinel workflow
@@ -220,7 +224,7 @@ Proposals (`store.ts` `ProposalRecord`) carry `baseVersion`, options with a serv
 - Transitland (needs a key); phonetic romanization on the Taxi card
 - Flight/hotel **booking and prices** are out of scope (no free API) — hand-offs only
 
-**Caveats:** LLM path never run with a real key. Overpass blocked on Aryan's network (Nominatim fallback). Sentinel's rain path unit-tested (no rain during testing).
+**Caveats:** Overpass blocked on Aryan's network; Nominatim IP-rate-limited there too (Photon / Wikidata fallbacks, 7-day disk cache). Don't loop `check:e2e` against live providers. Sentinel's rain path unit-tested (no rain during testing).
 
 ---
 
@@ -247,7 +251,7 @@ Everything here runs with `npm test` or needs no running app. **Parth never need
   - `pacing.ts`
   - `budget.ts` (known costs only)
   - `diet.ts` (OSM `diet:*` → verified / unverified / conflicts)
-  - `openingHours.ts` (common OSM subset; unknown formats → "unknown", never guessed)
+  - ~~`openingHours.ts`~~ — core parser now lives in `src/lib/musafir/opening-hours.ts` (Aryan). Parth may extend it (PH, week numbers, month ranges) with tests; unknown formats must stay "unknown"
 - `src/data/**` — verified JSON datasets, each entry with `source` URL + `checkedOn` date (emergency numbers, plug types, tipping norms for demo countries). Never LLM-generated.
 - `.github/workflows/**` — the scheduled sentinel ping
 - `docs/**` — API contract (routes, payloads, SSE events), demo script, test scenarios

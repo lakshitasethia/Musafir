@@ -134,3 +134,18 @@ test("planDays: meals never conflict with dietary needs and are labelled honestl
   const noClaims = planDays({ days: [days[0]], candidates: cands.slice(0, 2).concat([place(44, 0.0011, 0.001, "DINING", "amenity=cafe")]), vibe: { ...vibe, circadian: 0.3, pacing: 0.3 }, center, radiusMeters: 3000, city: "J", idFactory, dietary: ["vegan"] });
   assert.equal(noClaims[0].nodes.find((x) => x.category === "DINING")?.metadata!.diet, "unverified");
 });
+
+test("planDays: never schedules a place while its opening hours say closed", () => {
+  const cands = [
+    { ...place(50, 0.001, 0.001, "CULTURE", "tourism=museum"), name: "Morning-only museum", openingHours: "Mo-Su 06:00-08:00" },
+    { ...place(51, 0.0012, 0.001, "CULTURE", "tourism=gallery"), name: "Day gallery", openingHours: "Mo-Su 09:00-20:00" },
+    { ...place(52, 0.0011, 0.0012, "CULTURE", "tourism=museum"), name: "Hours unknown museum" },
+  ];
+  const out = planDays({ days: [days[0]], candidates: cands, vibe: { ...vibe, pacing: 0.6, circadian: 0.3 }, center, radiusMeters: 3000, city: "J", idFactory });
+  const titles = out[0].nodes.map((n) => n.title);
+  assert.ok(!titles.includes("Morning-only museum"), "closed museum was scheduled");
+  assert.ok(titles.includes("Day gallery"));
+  assert.equal(out[0].nodes.find((n) => n.title === "Day gallery")?.metadata?.hours, "open");
+  assert.equal(out[0].nodes.find((n) => n.title === "Hours unknown museum")?.metadata?.hours, "unknown");
+  assert.match(out[0].note ?? "", /closed then/);
+});

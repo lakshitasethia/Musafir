@@ -10,6 +10,7 @@ import { rankMealOptions, noClaimDietChecker } from "@/lib/musafir/dining.ts";
 import { estimateLeg } from "@/lib/musafir/geo.ts";
 import { consensus, type Vote } from "@/lib/musafir/groupvote.ts";
 import { newId } from "@/lib/musafir/ids.ts";
+import { openStatus } from "@/lib/musafir/opening-hours.ts";
 import { applyPatches } from "@/lib/musafir/reducer.ts";
 import type { ItineraryNode } from "@/lib/musafir/schemas.ts";
 import { fromMinutes, MINUTES_PER_DAY, toMinutes } from "@/lib/musafir/time.ts";
@@ -62,7 +63,11 @@ export async function createRoom(user: SessionUser, tripId: string, dayIndex: nu
 
   const venues = await nearbyCandidates(before.location, "DINING", SEARCH_RADIUS_M);
   if (venues.length === 0) throw new HttpError(422, `No eateries found near "${before.title}"`);
-  const candidates = venues.slice(0, 40).map((v) => ({ id: v.osmId, name: v.nameEn ?? v.name, lat: v.lat, lng: v.lng, diet: v.diet, venue: v }));
+  // Only places open for the whole meal slot (unknown hours are allowed but noted to guests).
+  const candidates = venues
+    .filter((v) => openStatus(v.openingHours, day.date, startMin, startMin + input.durationMinutes) !== "closed")
+    .slice(0, 40)
+    .map((v) => ({ id: v.osmId, name: v.nameEn ?? v.name, lat: v.lat, lng: v.lng, diet: v.diet, venue: v }));
   await warmLegs([before.location, ...(after ? [after.location] : []), ...candidates]).catch(() => undefined);
   const minutes = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => cachedLeg(a, b)?.durationMinutes ?? estimateLeg(a, b).durationMinutes;
   const ranked = rankMealOptions(before.location, after?.location, candidates, rec.trip.dietaryRestrictions, minutes, noClaimDietChecker, 3);

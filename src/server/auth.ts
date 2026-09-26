@@ -69,6 +69,12 @@ async function hashPassword(password: string, salt: string) {
   return (await scrypt(password, salt, KEY_LEN)).toString("hex");
 }
 
+function safeEqualText(a: string, b: string) {
+  const ba = Buffer.from(a);
+  const bb = Buffer.from(b);
+  return ba.length === bb.length && timingSafeEqual(ba, bb);
+}
+
 function safeEqualHex(a: string, b: string) {
   const ba = Buffer.from(a, "hex");
   const bb = Buffer.from(b, "hex");
@@ -120,7 +126,7 @@ export async function signup(input: z.infer<typeof SignupSchema>, current?: Sess
   if (input.role === "operator") {
     const mode = operatorSignupMode();
     if (mode === "disabled") throw new HttpError(403, "Operator sign-up is disabled on this deployment");
-    if (mode === "invite" && input.inviteCode !== process.env.OPERATOR_INVITE_CODE) {
+    if (mode === "invite" && !safeEqualText(input.inviteCode ?? "", process.env.OPERATOR_INVITE_CODE!)) {
       throw new HttpError(403, "Invalid operator invite code");
     }
   }

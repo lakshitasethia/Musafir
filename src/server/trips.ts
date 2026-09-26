@@ -135,13 +135,19 @@ export async function listTrips(user: SessionUser) {
   );
 }
 
+/** Travellers see "your operator", never an operator's personal name. */
+const OPERATOR_ACTOR = / \(operator\)$/;
+const maskFor = (viewer: SessionUser) => (actor: string | undefined) => (viewer.role === "traveller" && actor && OPERATOR_ACTOR.test(actor) ? "your operator" : actor);
+
 export async function getTripBundle(user: SessionUser, tripId: string) {
   return read((db) => {
     const rec = findTrip(db, user, tripId);
     const now = Date.now();
+    const mask = maskFor(user);
     return {
       trip: rec.trip,
-      autonomy: rec.autonomy,
+      // The escalation policy is operator configuration; travellers get decisions (canDecide), not the rules.
+      autonomy: user.role === "operator" ? rec.autonomy : null,
       planner: rec.planner ?? null,
       findings: auditTrip(rec.trip),
       owner: db.users.find((u) => u.id === rec.ownerId)?.name ?? "unknown",
@@ -151,13 +157,15 @@ export async function getTripBundle(user: SessionUser, tripId: string) {
         .reverse()
         .map(({ undoSnapshot, ...p }) => ({
           ...p,
+          createdBy: mask(p.createdBy)!,
+          decidedBy: mask(p.decidedBy),
           undoable: !!undoSnapshot && (p.status === "APPLIED" || p.status === "AUTO_APPLIED") && p.appliedVersion === rec.trip.version,
           escalated: isEscalated(p, now),
           canDecide: p.options.map((o) =>
             canDecide(user.role, o.risk, { escalated: isEscalated(p, now), policy: rec.autonomy }),
           ),
         })),
-      activity: db.activity.filter((a) => a.tripId === tripId).slice(-60).reverse(),
+      activity: db.activity.filter((a) => a.tripId === tripId).slice(-60).reverse().map((a) => ({ ...a, actor: mask(a.actor)! })),
     };
   });
 }

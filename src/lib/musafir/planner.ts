@@ -15,6 +15,7 @@
  */
 import { estimateLeg, haversineMeters, type LegEstimate } from "./geo.ts";
 import { noClaimDietChecker, type DietChecker, type DietStatus } from "./dining.ts";
+import { openStatus } from "./opening-hours.ts";
 import type { ItineraryNode, NodeCategory, VibeConfig } from "./schemas.ts";
 import { fromMinutes, MINUTES_PER_DAY } from "./time.ts";
 
@@ -178,11 +179,15 @@ export function planDays(input: PlanInput): PlannedDay[] {
     let hadLunch = false;
     let hadDinner = false;
     let truncated = 0;
-    const place = (c: PlaceCandidate, minutes: number, diet?: DietStatus): boolean => {
+    let closedSkips = 0;
+    /** "late" = past the day's end; "closed" = its opening hours exclude this slot. */
+    const place = (c: PlaceCandidate, minutes: number, diet?: DietStatus): true | "late" | "closed" => {
       const travel = prev ? travelMinutes(prev, c) : 0;
       const start = Math.ceil((cursor + travel) / SNAP) * SNAP;
       const duration = Math.max(20, Math.round((minutes * shape.visitScale) / SNAP) * SNAP);
-      if (start + duration > Math.min(shape.dayEnd, MINUTES_PER_DAY - 1)) return false;
+      if (start + duration > Math.min(shape.dayEnd, MINUTES_PER_DAY - 1)) return "late";
+      const hours = openStatus(c.openingHours, d.date, start, start + duration);
+      if (hours === "closed") return "closed";
       nodes.push({
         id: input.idFactory(),
         type: "SOFT",
@@ -201,6 +206,7 @@ export function planDays(input: PlanInput): PlannedDay[] {
           costSource: "unknown (no price in open data)",
           plannedBy: "planner",
           ...(c.openingHours ? { openingHours: c.openingHours } : {}),
+          hours,
           ...(diet && diet !== "not-needed" ? { diet } : {}),
         },
       });
@@ -214,15 +220,17 @@ export function planDays(input: PlanInput): PlannedDay[] {
       const check = input.dietCheck ?? noClaimDietChecker;
       const DIET_RANK = { "not-needed": 0, verified: 0, unverified: 1, conflicts: 2 } as const;
       // Never place food that conflicts with a restriction; prefer verified fits, then proximity.
+      const mealEnd = window.from + BASE_VISIT_MINUTES.DINING;
       const [best] = food
         .filter((f) => haversineMeters(here, f) < input.radiusMeters)
+        .filter((f) => openStatus(f.openingHours, d.date, window.from, mealEnd) !== "closed")
         .map((f) => ({ f, diet: check(f.diet, restrictions) }))
         .filter((x) => x.diet !== "conflicts")
         .sort((a, b) => DIET_RANK[a.diet] - DIET_RANK[b.diet] || haversineMeters(here, a.f) - haversineMeters(here, b.f) || byScore(a.f, b.f));
       if (!best) return;
       const pick = best.f;
       cursor = Math.max(cursor, window.from - (prev ? travelMinutes(prev, pick) : 0));
-      if (place(pick, BASE_VISIT_MINUTES.DINING, best.diet)) food.splice(food.indexOf(pick), 1);
+      if (place(pick, BASE_VISIT_MINUTES.DINING, best.diet) === true) food.splice(food.indexOf(pick), 1);
     };
     for (const c of ordered) {
       if (!hadLunch && cursor >= LUNCH_WINDOW.from - 30 && cursor <= LUNCH_WINDOW.to) {
@@ -233,9 +241,11 @@ export function planDays(input: PlanInput): PlannedDay[] {
         meal(DINNER_WINDOW);
         hadDinner = true;
       }
-      if (!place(c, BASE_VISIT_MINUTES[c.category])) {
-        truncated++;
-        sights.push(c); // give unused places back to later days
+      const placed = place(c, BASE_VISIT_MINUTES[c.category]);
+      if (placed !== true) {
+        if (placed === "closed") closedSkips++;
+        else truncated++;
+        sights.push(c); // give unused places back to later days (another day may suit its hours)
       }
     }
     // The last sight may end right at a meal time; don't skip the meal just because no sight follows.
@@ -243,12 +253,11 @@ export function planDays(input: PlanInput): PlannedDay[] {
     if (!hadDinner && shape.dayEnd >= DINNER_WINDOW.from + 60 && cursor <= DINNER_WINDOW.to) meal(DINNER_WINDOW);
     sights.sort(byScore);
 
-    const note =
-      nodes.length === 0
-        ? "No places found for this day."
-        : truncated > 0
-          ? `${truncated} place${truncated > 1 ? "s" : ""} didn't fit before ${fromMinutes(shape.dayEnd)}.`
-          : undefined;
+    const parts = [
+      truncated > 0 ? `${truncated} place${truncated > 1 ? "s" : ""} didn't fit before ${fromMinutes(shape.dayEnd)}` : "",
+      closedSkips > 0 ? `${closedSkips} skipped because ${closedSkips > 1 ? "they're" : "it's"} closed then` : "",
+    ].filter(Boolean);
+    const note = nodes.length === 0 ? "No places found for this day." : parts.length ? `${parts.join("; ")}.` : undefined;
     return { dayIndex: d.dayIndex, nodes, note };
   });
 }

@@ -362,7 +362,7 @@ export function Workspace({ tripId, role, backHref }: { tripId: string; role: Ro
           {role === "traveller" ? (
             <VibePanel key={JSON.stringify(data.trip.vibeConfig)} vibe={data.trip.vibeConfig} busy={busy} onSave={(v) => run(() => api(`/api/trips/${tripId}/settings`, { method: "PATCH", body: { vibeConfig: v } }), "Preferences saved").catch(() => undefined)} />
           ) : (
-            <AutonomyPanel key={JSON.stringify(data.autonomy)} policy={data.autonomy} busy={busy} onSave={(a) => run(() => api(`/api/trips/${tripId}/settings`, { method: "PATCH", body: { autonomy: a } }), "Autonomy rules saved").catch(() => undefined)} />
+            data.autonomy && <AutonomyPanel key={JSON.stringify(data.autonomy)} policy={data.autonomy} busy={busy} onSave={(a) => run(() => api(`/api/trips/${tripId}/settings`, { method: "PATCH", body: { autonomy: a } }), "Autonomy rules saved").catch(() => undefined)} />
           )}
         </section>
 
