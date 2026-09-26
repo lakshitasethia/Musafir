@@ -1,0 +1,9 @@
+import React from "react";
+
+export function StarSvg() {
+  return (
+    <svg width="100%" height="100%" viewBox="0 0 29 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M14.4356 0L16.4212 11.8947L27.7142 7.66633L28.0998 8.33367L18.7925 16L28.0998 23.6663L27.7142 24.3337L16.4212 20.1053L14.4356 32H13.6643L11.6786 20.1053L0.385642 24.3337L0 23.6663L9.30735 16L0 8.33367L0.385642 7.66633L11.6786 11.8947L13.6643 0H14.4356Z" fill="currentColor"/>
+</svg>
+  );
+}

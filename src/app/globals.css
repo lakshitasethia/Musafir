@@ -1,26 +1,523 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: 'Apris';
+  src: url('/fonts/Apris-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Apris';
+  src: url('/fonts/Apris-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Founders Grotesk Text';
+  src: url('/fonts/founders-grotesk-text-light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Founders Grotesk Text';
+  src: url('/fonts/founders-grotesk-text-regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --white: #ffffff;
+  --dark-umber-500: #3d2d20;
+  --nav--text-color: #3d2d20;
+  --nav--border: #e8e4de;
+  --transparent: transparent;
+  --nav--mobile-background: #fbf8f3;
+  --silver-200: #c2c6ca;
+  --ivory-300: #fbf8f3;
+  --obs-black-900: #1c2124;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+* {
+  box-sizing: border-box;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--white);
+  color: var(--dark-umber-500);
+  font-family: 'Founders Grotesk Text', Arial, sans-serif;
+  font-size: 1.1111111111111112vw;
+  font-weight: 400;
+  line-height: 1.2;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+@media screen and (max-width: 991px) {
+  html, body {
+    font-size: 16px;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+::selection {
+  color: #fff;
+  background: #3d2d20;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.page-wrapper {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  background-color: var(--white);
+}
+
+/* NAVBAR */
+.nav_component {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  padding-top: 1.15rem;
+  padding-bottom: 1.15rem;
+  z-index: 999;
+  background-color: transparent;
+  pointer-events: none;
+}
+
+.padding-global {
+  padding-left: 2.75rem;
+  padding-right: 2.75rem;
+}
+
+@media screen and (max-width: 767px) {
+  .padding-global {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+.nav_container {
+  display: grid;
+  grid-template-columns: 1fr min-content 1fr;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: none;
+  margin: 0 auto;
+  pointer-events: auto;
+}
+
+.nav_menu {
+  display: flex;
+  align-items: center;
+}
+
+.nav_menu-content {
+  display: flex;
+  align-items: center;
+  gap: 2.25rem;
+}
+
+.nav_menu_link {
+  color: var(--nav--text-color);
+  font-family: 'Founders Grotesk Text', Arial, sans-serif;
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: opacity 0.2s ease, color 0.3s ease;
+  cursor: pointer;
+}
+
+.nav_menu_link:hover {
+  opacity: 0.6;
+}
+
+.nav_brand {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: var(--nav--text-color);
+  transition: color 0.3s ease;
+}
+
+.nav_logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 8.4375rem;
+  height: 1rem;
+}
+
+.nav_logo svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+.nav_contact-wrp {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border-radius: 100rem;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: none;
+  font-family: 'Founders Grotesk Text', Arial, sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.button.is-secondary.is-nav {
+  border: 1px solid var(--nav--text-color);
+  color: var(--nav--text-color);
+  background-color: transparent;
+  padding: 0.55rem 1.45rem;
+  font-size: 0.75rem;
+  line-height: 1;
+  transition: color 0.2s, border-color 0.2s, background-color 0.2s;
+}
+
+.button.is-secondary.is-nav:hover {
+  background-color: var(--nav--text-color);
+  color: var(--white);
+}
+
+/* SECTION HERO */
+.section_hero {
+  position: relative;
+  z-index: 2;
+  overflow: clip;
+  width: 100%;
+}
+
+.hero_content-wrapper {
+  height: 200vh;
+  position: relative;
+  width: 100%;
+}
+
+.hero_sticky {
+  position: sticky;
+  top: 0;
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-flow: column;
+  justify-content: center;
+  align-items: center;
+  padding-top: 3.5rem;
+  z-index: 1;
+}
+
+.hero_content {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: clip;
+  perspective-origin: 50%;
+}
+
+/* ASTROLABE GRID */
+.grid {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.grid svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* COMPASS STARS */
+.hero_stars {
+  position: absolute;
+  inset: 0;
+  width: 80%;
+  height: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.hero_star {
+  width: 1.75rem;
+  color: #c4c3c133;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-top: 0.5rem;
+}
+
+.hero_star svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+/* HERO BACKGROUND IMAGERY (2.5D PARALLAX) */
+.hero_bg {
+  position: absolute;
+  inset: 0%;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  perspective: 50rem;
+  transform-style: preserve-3d;
+  z-index: 0;
+}
+
+.hero_bg-img {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  will-change: transform;
+}
+
+.hero_bg-img.is-bottom {
+  z-index: 0;
+}
+
+.hero_bg-img.is-top {
+  position: absolute;
+  inset: 0%;
+  z-index: 1;
+}
+
+/* HERO INVERTED MASK */
+.hero_mask-wrapper {
+  position: absolute;
+  inset: 0%;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-flow: column;
+  justify-content: center;
+  align-items: center;
+  perspective-origin: 50%;
+  transform-origin: 50%;
+  z-index: 9;
+  pointer-events: none;
+}
+
+.hero_mask-inner {
+  position: relative;
+  width: 100vw;
+  height: 100%;
+  display: flex;
+  flex-flow: column;
+  justify-content: center;
+  align-items: center;
+  perspective-origin: 50%;
+  transform-origin: 50%;
+  will-change: width;
+}
+
+.hero_mask-top {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background-color: #fff;
+  margin-bottom: -1px;
+  z-index: 9;
+}
+
+.hero_mask-bottom {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background-color: #fff;
+  margin-top: -1px;
+  z-index: 9;
+}
+
+.hero_mask-new {
+  position: relative;
+  width: 100%;
+  height: auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9;
+}
+
+.hero_mask-new svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* SCROLLABLE OVERLAY SIBLING OF HERO_STICKY */
+.hero_scrollable {
+  position: absolute;
+  inset: 0% 0% auto;
+  width: 100%;
+  height: 200vh;
+  display: flex;
+  flex-flow: column;
+  justify-content: flex-start;
+  align-items: center;
+  z-index: 11;
+  pointer-events: none;
+}
+
+/* PHASE 1 (HERO TOP OVER ISLAND) */
+.hero_scrollable-top {
+  position: relative;
+  width: 100%;
+  max-width: 30rem;
+  height: 100vh;
+  color: var(--white);
+  text-align: center;
+  display: flex;
+  flex-flow: column;
+  justify-content: center;
+  align-items: center;
+  grid-column-gap: 2rem;
+  grid-row-gap: 2rem;
+  padding-top: 1.5rem;
+  pointer-events: auto;
+}
+
+.heading-style-h3 {
+  font-family: Apris, Times New Roman, serif;
+  font-size: 3.25rem;
+  font-weight: 400;
+  line-height: 0.9;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #ffffff;
+  margin: 0;
+  text-shadow: 0 1px 16px rgba(0,0,0,0.18);
+}
+
+.text-size-medium {
+  font-family: 'Founders Grotesk Text', Arial, sans-serif;
+  font-size: 1.25rem;
+  font-weight: 300;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--white);
+  margin: 0;
+  max-width: 29.5rem;
+}
+
+.button.is-hero-discover {
+  background-color: var(--ivory-300);
+  color: var(--dark-umber-500);
+  text-align: center;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 100rem;
+  padding: 1rem 1.65rem;
+  font-size: 0.875rem;
+  line-height: 0.9;
+  font-family: 'Founders Grotesk Text', Arial, sans-serif;
+  font-weight: 400;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 3px 16px rgba(0,0,0,0.12);
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.button.is-hero-discover:hover {
+  background-color: var(--white);
+  transform: translateY(-1px);
+}
+
+/* PHASE 2 (ON SCROLL REVEAL) */
+.hero_scrollable-bottom {
+  position: relative;
+  width: 90%;
+  height: 100vh;
+  color: var(--white);
+  display: flex;
+  flex-flow: column;
+  justify-content: center;
+  align-items: stretch;
+  grid-column-gap: 3rem;
+  grid-row-gap: 3rem;
+  pointer-events: auto;
+}
+
+.heading-style-h1 {
+  font-family: Apris, Times New Roman, serif;
+  font-size: 5rem;
+  font-weight: 400;
+  line-height: 0.9;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--white);
+  max-width: 60rem;
+  margin: 0;
+}
+
+.hero_scrollable-bottom-text {
+  width: 28.875rem;
+  margin-left: 50%;
+  font-family: 'Founders Grotesk Text', Arial, sans-serif;
+  font-size: 1.25rem;
+  font-weight: 300;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--white);
+}
+
+/* COOKIE PRIVACY BADGE */
+.cookie_badge {
+  position: fixed;
+  bottom: 1.1rem;
+  left: 1.1rem;
+  z-index: 1000;
+  background-color: #55524e;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+.cookie_badge_pill {
+  width: 3.5px;
+  height: 13px;
+  background-color: #27ae60;
+  border-radius: 2px;
 }
