@@ -30,11 +30,28 @@ interface Props {
 export function ProposalCard({ proposal: p, role, titles, previewing, busy, onPreview, onApply, onDismiss, onUndo }: Props) {
   const open = p.status === "PENDING";
   const deadline = p.operatorDeadline ? new Date(p.operatorDeadline) : null;
+  // Card-level actions; shown in the last option's row so every button on the
+  // card sits on one line.
+  const cardActions = (
+    <>
+      {open && (
+        <button className="mz-btn mz-btn-ghost mz-btn-sm" disabled={busy} onClick={onDismiss}>
+          Dismiss
+        </button>
+      )}
+      {p.undoable && (
+        <button className="mz-btn mz-btn-ghost mz-btn-sm" disabled={busy} onClick={onUndo}>
+          Undo
+        </button>
+      )}
+    </>
+  );
+  const actionsInOptionRow = open && p.options.length > 0;
   return (
     <article className={`mz-card u-${p.urgency}${open ? "" : " is-closed"}`}>
       <div className="mz-spread">
         <span className="mz-status">
-          {STATUS_TEXT[p.status]} · {hhmm(p.createdAt)}
+          {STATUS_TEXT[p.status]} · <time className="mz-time">{hhmm(p.createdAt)}</time>
         </span>
         {p.escalated && (
           <span className="mz-tier t-TRAVELLER">{role === "operator" ? "Overdue — traveller may now decide" : "Operator didn't respond — your call"}</span>
@@ -44,7 +61,7 @@ export function ProposalCard({ proposal: p, role, titles, previewing, busy, onPr
       <p className="mz-small mz-muted" style={{ margin: 0 }}>
         {p.context}
       </p>
-      {open && deadline && !p.escalated && <p className="mz-tiny mz-muted" style={{ margin: 0 }}>Operator asked to respond by {hhmm(deadline.toISOString())}</p>}
+      {open && deadline && !p.escalated && <p className="mz-tiny mz-muted" style={{ margin: 0 }}>Operator asked to respond by <time className="mz-time">{hhmm(deadline.toISOString())}</time></p>}
 
       {(p.agentStatus === "RUNNING" || p.agentNote) && (
         <div className="mz-agent">
@@ -94,6 +111,7 @@ export function ProposalCard({ proposal: p, role, titles, previewing, busy, onPr
                 <button className="mz-btn mz-btn-solid mz-btn-sm" disabled={!allowed || busy} onClick={() => onApply(o.id)} title={allowed ? undefined : "Needs your operator"}>
                   {o.patches.length === 0 ? "Acknowledge" : "Apply"}
                 </button>
+                {i === p.options.length - 1 && cardActions}
               </div>
             )}
             {applied && <span className="mz-tiny mz-muted">Chosen by {p.decidedBy}</span>}
@@ -101,20 +119,7 @@ export function ProposalCard({ proposal: p, role, titles, previewing, busy, onPr
         );
       })}
 
-      {(open || p.undoable) && (
-        <div className="mz-row">
-          {open && (
-            <button className="mz-btn mz-btn-ghost mz-btn-sm" disabled={busy} onClick={onDismiss}>
-              Dismiss
-            </button>
-          )}
-          {p.undoable && (
-            <button className="mz-btn mz-btn-ghost mz-btn-sm" disabled={busy} onClick={onUndo}>
-              Undo
-            </button>
-          )}
-        </div>
-      )}
+      {!actionsInOptionRow && (open || p.undoable) && <div className="mz-row">{cardActions}</div>}
     </article>
   );
 }

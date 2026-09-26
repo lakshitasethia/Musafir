@@ -1591,3 +1591,168 @@ section[aria-label="Itinerary graph"] > .mz-panel:nth-child(2) .mz-btn-solid:hov
 .mz-packages {
   padding-top: 64px;
 }
+
+/* Trip detail header (the page head with day tabs) sits higher */
+@media (min-width: 720px) {
+  .mz-page-head:has(> .mz-tabs) {
+    padding-top: 32px;
+  }
+}
+
+/* Trip page: every clock time reads black and bold (stop times, proposal
+   previews, card timestamps, activity feed) */
+.mz-stop-time,
+.mz-time,
+.mz-feed time {
+  color: #000;
+  font-weight: 700;
+}
+
+/* Action cards: centred, heavy headline; all of a card's buttons on one line */
+.mz-card > .mz-h3 {
+  text-align: center;
+  font-weight: 700;
+  color: var(--mz-ink);
+  letter-spacing: 0.03em;
+  line-height: 1.12;
+}
+
+.mz-card .mz-option > .mz-row {
+  flex-wrap: nowrap;
+}
+
+.mz-card .mz-option > .mz-row > .mz-btn {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* ── Leaning faders (trip Vibe equalizer + New trip form) ────────────────
+   Each .mz-fader.is-leaning carries --v (0..1), --lean (0..1, distance from
+   centre) and --i (its index, for the staggered entrance).
+   Registered so the values glide: labels and the fill ease to new sizes. */
+@property --v {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0.5;
+}
+
+@property --lean {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+.mz-vibe .mz-panel-title > .mz-label {
+  font-family: Apris, "Times New Roman", serif;
+  font-size: clamp(1.6rem, 2.6vw, 2.1rem);
+  letter-spacing: 0.06em;
+  line-height: 1;
+  color: var(--mz-ink);
+}
+
+.mz-vibe .mz-panel-title > .mz-label::before {
+  width: 9px;
+  height: 9px;
+  vertical-align: 0.22em;
+}
+
+/* Save wakes up once something changed */
+.mz-vibe .mz-panel-title > .mz-btn:not(:disabled) {
+  background: var(--mz-ink);
+  color: var(--mz-paper);
+  animation: mz-vibe-save 1.8s ease-in-out infinite;
+}
+
+@keyframes mz-vibe-save {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(61, 45, 32, 0.28); }
+  50% { box-shadow: 0 0 0 7px rgba(61, 45, 32, 0); }
+}
+
+.mz-fader.is-leaning {
+  gap: 4px;
+  transition: --v 0.35s cubic-bezier(0.2, 0.9, 0.3, 1), --lean 0.35s cubic-bezier(0.2, 0.9, 0.3, 1);
+  animation: mz-vibe-in 0.6s cubic-bezier(0.2, 0.9, 0.3, 1) backwards;
+  animation-delay: calc(0.05s + var(--i, 0) * 0.08s);
+}
+
+
+@keyframes mz-vibe-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+.mz-fader.is-leaning > .mz-label {
+  color: var(--mz-ink);
+}
+
+/* Track: hairline, plus a dusk band from the centre to the handle that
+   thickens the further the fader leans */
+.mz-fader.is-leaning input[type="range"]::-webkit-slider-runnable-track {
+  height: 12px;
+  background:
+    linear-gradient(
+      to right,
+      transparent calc(min(var(--v), 0.5) * 100%),
+      #b3a7c4 calc(min(var(--v), 0.5) * 100%),
+      #e2b9a8 calc(max(var(--v), 0.5) * 100%),
+      transparent calc(max(var(--v), 0.5) * 100%)
+    ) 0 50% / 100% calc(2px + var(--lean) * 8px) no-repeat,
+    linear-gradient(var(--mz-ink-soft), var(--mz-ink-soft)) 0 50% / 100% 1px no-repeat;
+  border-radius: 6px;
+}
+
+.mz-fader.is-leaning input[type="range"]::-moz-range-track {
+  height: 12px;
+  background:
+    linear-gradient(
+      to right,
+      transparent calc(min(var(--v), 0.5) * 100%),
+      #b3a7c4 calc(min(var(--v), 0.5) * 100%),
+      #e2b9a8 calc(max(var(--v), 0.5) * 100%),
+      transparent calc(max(var(--v), 0.5) * 100%)
+    ) 0 50% / 100% calc(2px + var(--lean) * 8px) no-repeat,
+    linear-gradient(var(--mz-ink-soft), var(--mz-ink-soft)) 0 50% / 100% 1px no-repeat;
+}
+
+.mz-fader.is-leaning input[type="range"]::-webkit-slider-thumb {
+  margin-top: -8px;
+  transition: transform 0.2s cubic-bezier(0.2, 0.9, 0.3, 1.4), box-shadow 0.2s;
+}
+
+.mz-fader.is-leaning input[type="range"]:hover::-webkit-slider-thumb {
+  transform: translateY(-2px);
+  box-shadow: inset 0 13px 0 -12px var(--mz-ink), 0 6px 14px rgba(61, 45, 32, 0.25);
+}
+
+.mz-fader.is-leaning input[type="range"]:active::-webkit-slider-thumb {
+  transform: scale(1.18);
+}
+
+/* The side the fader leans toward grows and darkens; the other recedes */
+.mz-fader.is-leaning .mz-fader-ends {
+  align-items: baseline;
+}
+
+.mz-fader.is-leaning .mz-fader-ends > span {
+  line-height: 1.1;
+  color: var(--mz-ink);
+  white-space: nowrap;
+}
+
+.mz-fader.is-leaning .mz-fader-ends > span:first-child {
+  font-size: calc(0.78rem + (1 - var(--v)) * 0.5rem);
+  opacity: calc(0.4 + (1 - var(--v)) * 0.6);
+}
+
+.mz-fader.is-leaning .mz-fader-ends > span:last-child {
+  font-size: calc(0.78rem + var(--v) * 0.5rem);
+  opacity: calc(0.4 + var(--v) * 0.6);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mz-fader.is-leaning,
+  .mz-vibe .mz-panel-title > .mz-btn:not(:disabled) {
+    animation: none;
+    transition: none;
+  }
+}
