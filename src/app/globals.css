@@ -981,13 +981,8 @@ a {
   z-index: 4;
   margin-top: calc(100vw * -1010 / 8192);
   overflow: clip;
-  background: linear-gradient(
-    180deg,
-    #e8ddd3 0%,
-    #e5d8ce 30%,
-    #ddd0c5 60%,
-    #d5c5b8 100%
-  );
+  /* top of testimonials-bg.avif's sky, so the section and photo read as one */
+  background-color: #c8bdc7;
 }
 
 /* Top transition - continuous torn paper edge flowing from journey */
@@ -1106,6 +1101,203 @@ a {
   color: var(--brown-700, #6b5a4e);
 }
 
+/* Stories: a pinned scene (like flyward.com/about). While it is pinned,
+   scrolling draws the dusk route and each story fades up as the line reaches
+   it. Geometry: the route band is 74em x 22.2em (viewBox 1000 x 300, same
+   aspect), and passes through each photo's centre. */
+.stories_scroll {
+  position: relative;
+}
+
+.stories_sticky {
+  position: relative;
+  padding: 5rem 0 1.5rem;
+}
+
+.stories_spacer {
+  display: none;
+}
+
+.stories_sticky .heading-style-h2 {
+  font-size: clamp(2.5rem, 4.4vw, 4rem);
+}
+
+.stories {
+  position: relative;
+  max-width: 64em;
+  margin: 2.5rem auto 0;
+  /* the scene must fit one screen while pinned: heading + paddings take
+     ~17.8rem, the stories ~31em, so shrink em on shorter screens */
+  font-size: min(1rem, calc((100vh - 17.8rem) / 31));
+}
+
+.stories_route {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  left: -5em;
+  width: 74em;
+  height: 22.2em;
+  overflow: visible;
+  fill: none;
+  stroke: url(#stories-route-gradient);
+  stroke-width: 3;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+.stories_route path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+
+.stories_list {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  column-gap: 3em;
+  align-items: start;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.story:nth-child(even) {
+  margin-top: 5.5em;
+}
+
+.story_frame {
+  position: relative;
+  width: 11em;
+  margin: 0 0 1.4em;
+}
+
+.story_image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+}
+
+.story_num {
+  position: absolute;
+  top: -1.1em;
+  right: -1.1em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2em;
+  height: 2.2em;
+  border-radius: 50%;
+  background-color: var(--dark-umber-500);
+  color: var(--white);
+  font-family: 'Founders Grotesk Text', Arial, sans-serif;
+  font-size: 1.05em;
+}
+
+.story_who {
+  font-family: Apris, 'Times New Roman', serif;
+  font-size: 1.35em;
+  font-weight: 500;
+  line-height: 1.1;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--dark-umber-500);
+}
+
+.story_where {
+  margin-top: 0.4em;
+  font-family: 'Founders Grotesk Text', Arial, sans-serif;
+  font-size: 0.8em;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(61, 45, 32, 0.66);
+}
+
+.story_text {
+  margin: 0.9em 0 0;
+  font-family: 'Founders Grotesk Text', Arial, sans-serif;
+  font-size: 1em;
+  line-height: 1.42;
+  color: var(--dark-umber-500);
+}
+
+/* Reveal: armed by JS only on desktop with motion allowed */
+.stories.is-armed .story {
+  opacity: 0;
+  transform: translate3d(0, 0.6em, 0);
+  transition: opacity 0.5s ease, transform 0.7s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.stories.is-armed .story.is-in {
+  opacity: 1;
+  transform: none;
+}
+
+/* After the scene: open sky above the photo's mountains (~35vw tall, plus the
+   ~14vw torn edge below), so the note sits in the sky */
+.stories_tail {
+  padding-top: 2rem;
+  padding-bottom: 24vw;
+}
+
+.stories_note {
+  margin: 0;
+  text-align: center;
+  font-family: 'Founders Grotesk Text', Arial, sans-serif;
+  font-size: 0.8em;
+  color: rgba(61, 45, 32, 0.6);
+}
+
+@media (min-width: 992px) {
+  .stories_sticky {
+    position: sticky;
+    top: 0;
+  }
+
+  .stories_spacer {
+    display: block;
+    height: 90vh;
+  }
+}
+
+@media (max-width: 991px) {
+  .stories_sticky {
+    padding-top: 4rem;
+  }
+
+  .stories {
+    margin-top: 2.5rem;
+    font-size: 1rem;
+  }
+
+  .stories_route {
+    display: none;
+  }
+
+  .stories_list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 3rem 1.25rem;
+  }
+
+  .story:nth-child(even) {
+    margin-top: 3rem;
+  }
+
+  .story_frame {
+    width: 100%;
+  }
+
+  .story_text {
+    font-size: 0.95em;
+  }
+
+  .stories_tail {
+    padding-bottom: 28vw;
+  }
+}
+
 /* Navigation arrows */
 .swiper-button-left-wrp {
   position: absolute;
@@ -1160,7 +1352,12 @@ a {
   z-index: -1;
   object-fit: cover;
   pointer-events: none;
+  /* the photo's torn top dissolves into the section's matching sky colour */
+  /* its torn edge lives in the top ~8%; hide that, then fade in on the sky */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, transparent 9%, #000 24%);
+  mask-image: linear-gradient(to bottom, transparent 0, transparent 9%, #000 24%);
 }
+
 
 /* Bottom transition torn paper */
 .testimonials_transition-bottom-wrp {

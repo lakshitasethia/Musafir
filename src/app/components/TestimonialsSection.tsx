@@ -1,50 +1,137 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 
-interface Testimonial {
-  name: string;
-  title: string;
+interface Story {
+  who: string;
+  where: string;
   text: string;
   image: string;
 }
 
-const testimonials: Testimonial[] = [
+// Illustrative stories written for the demo, one per traveller type. They
+// describe what Musafir actually does; swap in real reviews once they exist.
+const stories: Story[] = [
   {
-    name: "Kenneth Mackinnon",
-    title: "Top Notch!",
-    text: "I originally thought using an agent would be more expensive, but Flyward actually saved me money. Their relationships with airlines and hotels meant I got a what I wanted for a better price. They are masters at optimizing a budget.",
-    image: "/images/testimonial1.jpeg",
+    who: "Solo rider",
+    where: "Himalayas",
+    text: "A landslide shut the pass on day three. Before I'd even pulled over, the day was re-planned around a valley road and a new place to sleep.",
+    image: "/images/testimonial-solo-rider.jpg",
   },
   {
-    name: "Amir Elayyan",
-    title: "Great Experience!",
-    text: "Planning a holiday to Madagascar was something I always thought would be a logistical nightmare, until I called Flyward. They handled everything: research, planning, bookings, even payments, then simply sent me the final itinerary and invoice. I was speechless. It felt like a close family member had taken care of it all, anticipating every detail before I even asked. This is more than service, it's trust and warmth, wrapped into one incredible team.",
-    image: "/images/testimonial2.jpeg",
+    who: "Four friends",
+    where: "Jaipur",
+    text: "We dragged the pacing fader all the way to café loiterer and it listened. Fewer forts, longer chai, and not one argument about the plan.",
+    image: "/images/testimonial-friends.jpg",
+  },
+  {
+    who: "Family of five",
+    where: "Goa",
+    text: "When our flight landed three hours late, the kids' beach afternoon was quietly moved to the next morning. One tap from me, that was it.",
+    image: "/images/testimonial-family.jpg",
+  },
+  {
+    who: "A couple",
+    where: "Varanasi",
+    text: "Rain was forecast for our evening boat ride. Musafir swapped it with the morning aarti, and we still caught the sunset on the ghats.",
+    image: "/images/testimonial-couple.jpg",
   },
 ];
+
+// Route through the four photo centres (x 142 / 368 / 594 / 820, y 100 / 175
+// alternating) in the 1000 x 300 band behind the cards. It loops in the gaps
+// and stays above the text columns.
+const ROUTE =
+  "M0 70C50 40 100 60 142 100C190 150 230 30 265 50C300 70 320 160 368 175C420 190 450 60 500 50C545 42 565 80 594 100C640 130 690 215 745 200C785 185 790 160 820 175C880 205 930 80 1000 90";
+
+// Scrubbed like flyward.com/about: while the scene is pinned, scroll draws the
+// route, and each story fades up the moment the line reaches its photo.
+const PIN_QUERY = "(min-width: 992px)";
+const REVEAL_LEAD = 0.015; // show a card just before the line touches it
 
 interface TestimonialsSectionProps {
   sectionRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 export function TestimonialsSection({ sectionRef }: TestimonialsSectionProps) {
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const slideRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const stickyRef = useRef<HTMLDivElement>(null);
+  const storiesRef = useRef<HTMLDivElement>(null);
+  const routeRef = useRef<SVGPathElement>(null);
 
-  const goToPrev = () => {
-    setCurrentSlide((prev) =>
-      prev === 0 ? testimonials.length - 1 : prev - 1
-    );
-  };
+  useEffect(() => {
+    const scrollZone = scrollRef.current;
+    const sticky = stickyRef.current;
+    const storiesEl = storiesRef.current;
+    const route = routeRef.current;
+    if (!scrollZone || !sticky || !storiesEl || !route) return;
 
-  const goToNext = () => {
-    setCurrentSlide((prev) =>
-      prev === testimonials.length - 1 ? 0 : prev + 1
-    );
-  };
+    const pinQuery = window.matchMedia(PIN_QUERY);
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const cards = Array.from(storiesEl.querySelectorAll<HTMLElement>(".story"));
+    let thresholds: number[] = [];
+    let frame = 0;
 
-  const current = testimonials[currentSlide];
+    // Where along the route (0..1) the line reaches each photo's left edge.
+    const measure = () => {
+      const svg = route.ownerSVGElement;
+      if (!svg) return;
+      const box = svg.getBoundingClientRect();
+      const total = route.getTotalLength();
+      const samples = Array.from({ length: 241 }, (_, i) => {
+        const at = (i / 240) * total;
+        return { t: at / total, x: route.getPointAtLength(at).x };
+      });
+      thresholds = cards.map((card) => {
+        const img = card.querySelector(".story_image");
+        if (!img || box.width === 0) return 0;
+        const left = ((img.getBoundingClientRect().left - box.left) / box.width) * 1000;
+        return samples.find((s) => s.x >= left)?.t ?? 1;
+      });
+      // Pin from the top when the scene fits, else pin once its bottom arrives.
+      sticky.style.top = `${Math.min(0, window.innerHeight - sticky.offsetHeight)}px`;
+    };
+
+    const update = () => {
+      frame = 0;
+      const animate = pinQuery.matches && !reduceMotion.matches;
+      storiesEl.classList.toggle("is-armed", animate);
+      if (!animate) {
+        route.style.strokeDashoffset = "0";
+        cards.forEach((card) => card.classList.add("is-in"));
+        return;
+      }
+      const zone = scrollZone.getBoundingClientRect();
+      const pinTop = parseFloat(sticky.style.top) || 0;
+      const distance = zone.height - sticky.offsetHeight;
+      const progress = distance > 0 ? Math.min(Math.max((pinTop - zone.top) / distance, 0), 1) : 1;
+      route.style.strokeDashoffset = `${1 - progress}`;
+      cards.forEach((card, i) => card.classList.toggle("is-in", progress + REVEAL_LEAD >= thresholds[i]));
+    };
+
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    const remeasure = () => {
+      measure();
+      schedule();
+    };
+
+    remeasure();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", remeasure);
+    pinQuery.addEventListener("change", remeasure);
+    // photos are lazy; re-measure once they have their size
+    storiesEl.querySelectorAll("img").forEach((img) => img.addEventListener("load", remeasure));
+
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", remeasure);
+      pinQuery.removeEventListener("change", remeasure);
+      storiesEl.querySelectorAll("img").forEach((img) => img.removeEventListener("load", remeasure));
+    };
+  }, []);
 
   return (
     <div className="section_testimonials" ref={sectionRef}>
@@ -57,77 +144,65 @@ export function TestimonialsSection({ sectionRef }: TestimonialsSectionProps) {
         />
       </div>
 
-      <div className="padding-global padding-section-large padding-section-bottom-25">
-        <div className="container-max">
-          <h2 className="heading-style-h2 text-align-center">
-            Trusted by travelers <br />
-            who return
-          </h2>
+      {/* Pinned scene: heading, route and stories stay put while it plays */}
+      <div className="stories_scroll" ref={scrollRef}>
+        <div className="stories_sticky" ref={stickyRef}>
+          <div className="padding-global">
+            <div className="container-max">
+              <h2 className="heading-style-h2 text-align-center">
+                Testimonials by our
+                <br />
+                Musafirs
+              </h2>
 
-          <div className="testimonials_list-wrapper">
-            {/* Testimonial slide */}
-            <div className="testimonials_slide" ref={slideRef} key={currentSlide}>
-              <img
-                src={current.image}
-                alt={current.name}
-                className="testimonials_image"
-              />
-              <div className="testimonials_slide-heading">
-                <div className="heading-style-h4">{current.name}</div>
-                <div className="text-size-caption-medium">{current.title}</div>
-              </div>
-              <div className="text-size-large text-align-center">
-                {current.text}
-              </div>
-            </div>
+              <div className="stories" ref={storiesRef}>
+                <svg
+                  className="stories_route"
+                  viewBox="0 0 1000 300"
+                  preserveAspectRatio="none"
+                  aria-hidden="true"
+                >
+                  <defs>
+                    <linearGradient id="stories-route-gradient" x1="0" y1="0" x2="1000" y2="0" gradientUnits="userSpaceOnUse">
+                      {/* the journey route's dusk tones, deepened to read on the lilac sky */}
+                      <stop offset="0" stopColor="#9585ad" />
+                      <stop offset="0.5" stopColor="#b08fae" />
+                      <stop offset="1" stopColor="#c8937e" />
+                    </linearGradient>
+                  </defs>
+                  <path ref={routeRef} d={ROUTE} pathLength={1} />
+                </svg>
 
-            {/* Navigation arrows */}
-            <div className="swiper-button-left-wrp">
-              <button
-                aria-label="Previous slide"
-                className="swiper-button is-prev"
-                onClick={goToPrev}
-              >
-                <div className="swiper-button-icon">
-                  <svg
-                    width="100%"
-                    height="100%"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M6.86616 11.1127L15.979 11.1127L15.979 9.61527L6.86615 9.61526L10.8822 5.59926L9.82333 4.54044L3.99981 10.364L9.82335 16.1875L10.8822 15.1287L6.86616 11.1127Z"
-                      fill="currentColor"
-                    />
-                  </svg>
-                </div>
-              </button>
-            </div>
-            <div className="swiper-button-right-wrp">
-              <button
-                aria-label="Next slide"
-                className="swiper-button is-next"
-                onClick={goToNext}
-              >
-                <div className="swiper-button-icon">
-                  <svg
-                    width="100%"
-                    height="100%"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M12.8614 11.1127L3.74851 11.1127L3.7485 9.61527L12.8614 9.61526L8.84538 5.59926L9.9042 4.54044L15.7277 10.364L9.90419 16.1875L8.84537 15.1287L12.8614 11.1127Z"
-                      fill="currentColor"
-                    />
-                  </svg>
-                </div>
-              </button>
+                <ol className="stories_list">
+                  {stories.map((story, i) => (
+                    <li key={story.who} className="story">
+                      <figure className="story_frame">
+                        <img
+                          src={story.image}
+                          alt={`${story.who} in ${story.where}`}
+                          className="story_image"
+                          loading="lazy"
+                        />
+                        <span className="story_num">{i + 1}</span>
+                      </figure>
+                      <div className="story_who">{story.who}</div>
+                      <div className="story_where">{story.where}</div>
+                      <p className="story_text">{story.text}</p>
+                    </li>
+                  ))}
+                </ol>
+              </div>
             </div>
           </div>
         </div>
+        {/* scroll distance the scene stays pinned for */}
+        <div className="stories_spacer" aria-hidden="true" />
+      </div>
+
+      <div className="stories_tail padding-global">
+        <p className="stories_note">
+          Illustrative stories showing how Musafir handles a trip on the road.
+        </p>
       </div>
 
       {/* Background scenic image */}
