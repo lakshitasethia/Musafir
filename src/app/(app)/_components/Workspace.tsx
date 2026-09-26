@@ -341,6 +341,7 @@ export function Workspace({ tripId, role, backHref }: { tripId: string; role: Ro
           </div>
 
           <Simulator
+            role={role}
             day={day}
             selectedId={selectedId}
             busy={busy}
@@ -358,7 +359,7 @@ export function Workspace({ tripId, role, backHref }: { tripId: string; role: Ro
             }
           />
 
-          {day.nodes.length > 0 && <WeatherTwin tripId={tripId} dayIndex={activeDayIndex} version={data.trip.version} />}
+          {role === "operator" && day.nodes.length > 0 && <WeatherTwin tripId={tripId} dayIndex={activeDayIndex} version={data.trip.version} />}
 
           {role === "traveller" && day.nodes.length > 0 && <GroupVotePanel tripId={tripId} dayIndex={activeDayIndex} version={data.trip.version} />}
 
@@ -439,12 +440,14 @@ type DisruptionBody =
   | { kind: "WEATHER"; fromMinute: number; toMinute: number; reason: string };
 
 function Simulator({
+  role,
   day,
   selectedId,
   busy,
   onDisruption,
   onWeather,
 }: {
+  role: Role;
   day: DaySchedule;
   selectedId: string | null;
   busy: boolean;
@@ -461,13 +464,15 @@ function Simulator({
   return (
     <div className="mz-panel mz-stack mz-simulator">
       <div className="mz-panel-title">
-        <span className="mz-label">Disruption simulator</span>
-        <button className="mz-btn mz-btn-ghost mz-btn-sm" disabled={busy || day.nodes.length === 0} onClick={onWeather} title="Checks the real Open-Meteo forecast for this day">
-          Check live forecast
-        </button>
+        <span className="mz-label">{role === "operator" ? "Disruption simulator" : "Something changed?"}</span>
+        {role === "operator" && (
+          <button className="mz-btn mz-btn-ghost mz-btn-sm" disabled={busy || day.nodes.length === 0} onClick={onWeather} title="Checks the real Open-Meteo forecast for this day">
+            Check live forecast
+          </button>
+        )}
       </div>
       {day.nodes.length === 0 ? (
-        <p className="mz-small mz-muted" style={{ margin: 0 }}>Add stops to simulate delays, closures and rain.</p>
+        <p className="mz-small mz-muted" style={{ margin: 0 }}>Add stops first.</p>
       ) : (
         <>
           <label className="mz-field">
@@ -496,6 +501,8 @@ function Simulator({
               Venue closed
             </button>
           </div>
+          {/* Weather is watched by forecasts and reviewed by the operator — travellers don't declare it. */}
+          {role === "operator" && (
           <div className="mz-grid-3" style={{ alignItems: "end" }}>
             <label className="mz-field">
               <span className="mz-label">Rain from</span>
@@ -513,6 +520,7 @@ function Simulator({
               Rain
             </button>
           </div>
+          )}
         </>
       )}
     </div>

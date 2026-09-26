@@ -71,7 +71,7 @@ export async function runSentinelForTrip(tripId: string, opts: { force?: boolean
       fromMinute: w.fromMinute,
       toMinute: w.toMinute,
       reason: `Sentinel: ${w.peakProbability}% chance of rain ${fromMinutes(w.fromMinute)}–${w.toMinute >= 1440 ? "24:00" : fromMinutes(w.toMinute)} (${forecast.timezone})`,
-    });
+    }, { review: { probability: w.peakProbability / 100 } });
     existing.push(w);
     created.push(p.id);
   }

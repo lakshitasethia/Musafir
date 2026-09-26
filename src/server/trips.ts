@@ -71,6 +71,11 @@ function canView(user: SessionUser, rec: TripRecord) {
   return user.role === "operator" || rec.ownerId === user.id;
 }
 
+/** Weather advisories reach the traveller only after an operator sends them. */
+function visibleTo(user: SessionUser, p: ProposalRecord) {
+  return user.role === "operator" || !p.review || p.review.state === "SENT";
+}
+
 function findTrip(db: Db, user: SessionUser, tripId: string): TripRecord {
   const rec = db.trips.find((t) => t.trip.id === tripId);
   if (!rec || !canView(user, rec)) throw new HttpError(404, "Trip not found");
@@ -128,7 +133,7 @@ export async function listTrips(user: SessionUser) {
         dateRange: t.trip.dateRange,
         stops: t.trip.schedule.reduce((n, d) => n + d.nodes.length, 0),
         owner: db.users.find((u) => u.id === t.ownerId)?.name ?? "unknown",
-        pending: db.proposals.filter((p) => p.tripId === t.trip.id && p.status === "PENDING").length,
+        pending: db.proposals.filter((p) => p.tripId === t.trip.id && p.status === "PENDING" && visibleTo(user, p)).length,
         updatedAt: t.updatedAt,
       }))
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
@@ -152,7 +157,7 @@ export async function getTripBundle(user: SessionUser, tripId: string) {
       findings: auditTrip(rec.trip),
       owner: db.users.find((u) => u.id === rec.ownerId)?.name ?? "unknown",
       proposals: db.proposals
-        .filter((p) => p.tripId === tripId)
+        .filter((p) => p.tripId === tripId && visibleTo(user, p))
         .slice(-40)
         .reverse()
         .map(({ undoSnapshot, ...p }) => ({
@@ -176,7 +181,7 @@ export async function operatorQueue(user: SessionUser) {
   return read((db) => {
     const now = Date.now();
     return db.proposals
-      .filter((p) => p.status === "PENDING" && p.options.some((o) => o.risk.tier === "OPERATOR"))
+      .filter((p) => p.status === "PENDING" && (p.review?.state === "OPERATOR" || p.options.some((o) => o.risk.tier === "OPERATOR")))
       .map((full) => {
         const { undoSnapshot, ...p } = full;
         void undoSnapshot;
@@ -314,7 +319,17 @@ export function buildEngineOption(rec: TripRecord, day: DaySchedule, disruption:
 }
 
 /** Creates a proposal from a disruption; auto-applies when the server classifies it AUTO. */
-export async function createDisruptionProposal(user: SessionUser, tripId: string, dayIndex: number, disruption: Disruption) {
+export async function createDisruptionProposal(
+  user: SessionUser,
+  tripId: string,
+  dayIndex: number,
+  disruption: Disruption,
+  opts: { review?: { probability?: number } } = {},
+) {
+  // Travellers report what only they know (late, closed). Weather comes from forecasts and goes to the operator.
+  if (disruption.kind === "WEATHER" && user.role === "traveller" && !opts.review) {
+    throw new HttpError(403, "Weather is watched for you — your operator will send an advisory if it matters");
+  }
   await warmDay(tripId, dayIndex);
   const out = await write((db) => {
     const rec = findTrip(db, user, tripId);
@@ -348,7 +363,12 @@ export async function createDisruptionProposal(user: SessionUser, tripId: string
     if (option.risk.tier === "OPERATOR") {
       proposal.operatorDeadline = new Date(now.getTime() + rec.autonomy.operatorTimeoutMinutes * 60_000).toISOString();
     }
-    if (option.risk.tier === "AUTO" && option.patches.length > 0) {
+    if (opts.review) {
+      // Held for the operator: never auto-applied, invisible to the traveller until sent.
+      proposal.review = { state: "OPERATOR", ...(opts.review.probability !== undefined ? { probability: opts.review.probability } : {}) };
+      proposal.urgency = "RECOMMENDATION";
+      log(db, tripId, actorOf(user), `Weather advisory for operator review: ${headline}`);
+    } else if (option.risk.tier === "AUTO" && option.patches.length > 0) {
       proposal.undoSnapshot = day;
       setDay(rec, applyPatches(day, option.patches, { routed: routedLookup }));
       proposal.status = "AUTO_APPLIED";
@@ -486,4 +506,35 @@ export async function startClusterProposal(user: SessionUser, tripId: string, da
   });
   publish({ type: "proposal.changed", tripId, proposalId: out });
   return out;
+}
+
+/**
+ * Operator reviews a weather advisory: send it to the traveller (with the chance
+ * of rain and an optional note) or dismiss it. Nothing about the trip changes
+ * here — the traveller still taps to accept the prepared plan.
+ */
+export async function reviewAdvisory(user: SessionUser, proposalId: string, action: "SEND" | "DISMISS", note?: string) {
+  if (user.role !== "operator") throw new HttpError(403, "Operators only");
+  const out = await write((db) => {
+    const p = db.proposals.find((x) => x.id === proposalId);
+    if (!p || !p.review) throw new HttpError(404, "Advisory not found");
+    if (p.review.state !== "OPERATOR" || p.status !== "PENDING") throw new HttpError(409, "Already handled");
+    const at = new Date().toISOString();
+    if (action === "SEND") {
+      const chance = p.review.probability !== undefined ? `${Math.round(p.review.probability * 100)}% chance of rain. ` : "";
+      const msg = note?.trim() ? note.trim() : `${chance}We've prepared a plan B — tap to use it.`;
+      p.review = { ...p.review, state: "SENT", note: msg, by: actorOf(user), at };
+      p.context = msg;
+      log(db, p.tripId, actorOf(user), `Sent weather advisory: ${p.headline}`);
+    } else {
+      p.review = { ...p.review, state: "DISMISSED", by: actorOf(user), at };
+      p.status = "DISMISSED";
+      p.decidedBy = actorOf(user);
+      p.decidedAt = at;
+      log(db, p.tripId, actorOf(user), `Kept weather advisory internal: ${p.headline}`);
+    }
+    return p;
+  });
+  publish({ type: "proposal.changed", tripId: out.tripId, proposalId: out.id });
+  return { state: out.review!.state };
 }

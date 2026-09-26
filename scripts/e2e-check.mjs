@@ -175,10 +175,9 @@ await check("big delay asks the traveller (TRAVELLER card) and applies", async (
   await refresh();
   return travellerCard.options[0].label;
 });
-await check("rain simulation creates a weather card", async () => {
+await check("travellers can't declare rain (forecasts + operator decide)", async () => {
   const r = await t.req(`/api/trips/${tripId}/days/1/disruptions`, { body: { kind: "WEATHER", fromMinute: 0, toMinute: 1439, reason: "feature check rain" } });
-  expect(r.status === 200, JSON.stringify(r.data));
-  return r.data.status;
+  expect(r.status === 403, `got ${r.status}`);
 });
 let closureId;
 await check("venue closure → Resolver agent finds real alternatives (Groq-ranked)", async () => {
@@ -199,11 +198,7 @@ await check("dismiss a card", async () => {
   const r = await t.req(`/api/proposals/${closureId}/decision`, { body: { decision: "DISMISS" } });
   expect(r.status === 200, JSON.stringify(r.data));
 });
-await check("live forecast check (Open-Meteo)", async () => {
-  const r = await t.req(`/api/trips/${tripId}/days/1/weather`, { body: {} });
-  expect(r.status === 200, JSON.stringify(r.data));
-  return r.data.message;
-});
+await check("forecast check is for operators", async () => expect((await t.req(`/api/trips/${tripId}/days/1/weather`, { body: {} })).status === 403, "traveller allowed"));
 await check("sentinel (ambient 2-hour check)", async () => {
   const r = await t.req("/api/sentinel", { body: { tripId } });
   expect(r.status === 200, JSON.stringify(r.data));
@@ -273,6 +268,20 @@ await check("operator quick edit — free text via Groq (Tier 2)", async () => {
   expect(r.status === 200 && r.data.via.startsWith("llm:"), JSON.stringify(r.data));
   return `${r.data.via}: ${r.data.summary}`;
 });
+await check("operator: live forecast check → advisories held for review", async () => {
+  const r = await o.req(`/api/trips/${tripId}/days/1/weather`, { body: {} });
+  expect(r.status === 200, JSON.stringify(r.data));
+  return r.data.message;
+});
+await check("operator rain simulation creates a weather card", async () => {
+  const r = await o.req(`/api/trips/${tripId}/days/1/disruptions`, { body: { kind: "WEATHER", fromMinute: 0, toMinute: 1439, reason: "feature check rain" } });
+  expect(r.status === 200, JSON.stringify(r.data));
+  return r.data.status;
+});
+await check("travellers can't review advisories", async () => {
+  const r = await t.req(`/api/proposals/${opCard}/review`, { body: { action: "SEND" } });
+  expect(r.status === 403, `got ${r.status}`);
+});
 await check("travellers can't use quick edit", async () => expect((await t.req(`/api/trips/${tripId}/days/1/microedit`, { body: { text: "push stop 2 15 min" } })).status === 403, "not 403"));
 await check("operator autonomy settings", async () => {
   const r = await o.req(`/api/trips/${tripId}/settings`, { method: "PATCH", body: { autonomy: { maxAutoShiftMinutes: 25 } } });
@@ -290,6 +299,25 @@ await check("traveller view hides operator config and names", async () => {
   expect(bundle.autonomy === null, "autonomy policy sent to traveller");
   expect(!names.some((n) => n?.includes("Feature Check Operator")), "operator name visible");
   expect(names.includes("your operator"), "operator actions not labelled");
+});
+
+// ── Trip form intelligence ─────────────────────────────────────────
+await check("destination check: a country resolves to recommended cities", async () => {
+  const r = await t.req("/api/destinations?q=Japan");
+  expect(r.status === 200 && r.data.destination?.scale === "country" && r.data.destination.cities.length >= 3, JSON.stringify(r.data).slice(0, 200));
+  return r.data.destination.cities.slice(0, 4).map((c) => c.name).join(", ");
+});
+await check("brief → vibe: faders, interests, must-sees (must-sees only if typed)", async () => {
+  const r = await t.req("/api/vibe/interpret", { body: { text: "Slow trip with my partner, we love forts and street food, no nightlife. Must see Hawa Mahal." } });
+  expect(r.status === 200 && r.data.mustSee.includes("Hawa Mahal") && r.data.avoid.includes("nightlife"), JSON.stringify(r.data));
+  return `${r.data.via}: interests ${r.data.interests.join("/")}`;
+});
+await check("suggestion cards for a vague destination are real, verified places", async () => {
+  const start = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
+  const end = new Date(Date.now() + 33 * 864e5).toISOString().slice(0, 10);
+  const r = await t.req("/api/suggest", { body: { text: "anywhere warm to chill by the sea", vibe: { pacing: 0.2, budget: 0.3, culturalDepth: 0.5, circadian: 0.5 }, startDate: start, endDate: end } });
+  expect(r.status === 200 && r.data.cards.length >= 2, JSON.stringify(r.data).slice(0, 200));
+  return r.data.cards.map((c) => `${c.name}${c.weather ? ` (${c.weather.avgHighC}°C)` : ""}`).join(", ");
 });
 
 // ── Weather Digital Twin ───────────────────────────────────────────

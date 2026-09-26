@@ -6,9 +6,12 @@ import { createDisruptionProposal, getTripBundle } from "@/server/trips.ts";
 import { rainWindows } from "@/server/weather.ts";
 import { toMinutes } from "@/lib/musafir/time.ts";
 
-/** Checks the real Open-Meteo forecast for a day and raises WEATHER proposals for rain over outdoor stops. */
+/**
+ * Operator: checks the real Open-Meteo forecast for a day and raises weather advisories
+ * (held for operator review) for rain over outdoor stops.
+ */
 export const POST = handle<DayCtx>(async (_req, { params }) => {
-  const user = await requireUser();
+  const user = await requireUser("operator");
   const { id, dayIndex: raw } = await params;
   const dayIndex = dayIndexOf(raw);
   const { trip } = await getTripBundle(user, id);
@@ -35,7 +38,7 @@ export const POST = handle<DayCtx>(async (_req, { params }) => {
       fromMinute: w.fromMinute,
       toMinute: w.toMinute,
       reason: `Open-Meteo forecast: ${w.peakProbability}% chance of rain (${check.timezone})`,
-    });
+    }, { review: { probability: w.peakProbability / 100 } });
     proposals.push(p.id);
     after(() => runAlternativeAgent(p.id));
   }
@@ -47,7 +50,7 @@ export const POST = handle<DayCtx>(async (_req, { params }) => {
         ? "No rain in the forecast for this day."
         : hits.length === 0
           ? `Rain expected, but no outdoor stops are affected.`
-          : `Rain affects ${hits.length} window${hits.length > 1 ? "s" : ""} with outdoor stops — see the cards.`,
+          : `Rain affects ${hits.length} window${hits.length > 1 ? "s" : ""} with outdoor stops — review in the queue.`,
     proposals,
   };
 });

@@ -17,6 +17,7 @@ interface QueueItem {
   escalated: boolean;
   urgency: string;
   options: { id: string; label: string; patches: unknown[]; risk: { tier: string; reasons: string[] } }[];
+  review?: { state: string; probability?: number };
 }
 interface TripSummary {
   id: string;
@@ -31,6 +32,20 @@ export function OpsConsole() {
   const { data, error, live, refresh } = useLive<{ queue: QueueItem[]; trips: TripSummary[] }>("/api/ops/queue", "/api/ops/events");
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(null);
+
+  async function review(p: QueueItem, action: "SEND" | "DISMISS", note?: string) {
+    setBusy(true);
+    try {
+      await api(`/api/proposals/${p.id}/review`, { body: { action, note: note?.trim() || undefined } });
+      setToast({ text: action === "SEND" ? "Sent to the traveller" : "Kept internal" });
+    } catch (e) {
+      setToast({ text: (e as Error).message, error: true });
+    } finally {
+      setBusy(false);
+      setTimeout(() => setToast(null), 3000);
+      refresh();
+    }
+  }
 
   async function decide(p: QueueItem, decision: "APPLY" | "DISMISS", optionId?: string) {
     setBusy(true);
@@ -64,7 +79,10 @@ export function OpsConsole() {
         <section className="mz-stack" aria-label="Approval queue">
           <span className="mz-label">Approval queue · {data?.queue.length ?? 0}</span>
           {data?.queue.length === 0 && <div className="mz-empty">Queue is clear.</div>}
-          {data?.queue.map((p) => (
+          {data?.queue.map((p) =>
+            p.review?.state === "OPERATOR" ? (
+              <AdvisoryCard key={p.id} p={p} busy={busy} onReview={review} />
+            ) : (
             <article key={p.id} className={`mz-card u-${p.urgency}`}>
               <div className="mz-spread">
                 <Link href={`/ops/trips/${p.tripId}`} className="mz-label">
@@ -100,7 +118,8 @@ export function OpsConsole() {
                 </Link>
               </div>
             </article>
-          ))}
+            ),
+          )}
         </section>
         <aside className="mz-side mz-stack" aria-label="Trips">
           <span className="mz-label">All trips · {data?.trips.length ?? 0}</span>
@@ -123,5 +142,34 @@ export function OpsConsole() {
       </div>
       <Toast toast={toast} />
     </>
+  );
+}
+
+/** A weather advisory from forecasts: the operator decides whether the traveller hears about it. */
+function AdvisoryCard({ p, busy, onReview }: { p: QueueItem; busy: boolean; onReview: (p: QueueItem, action: "SEND" | "DISMISS", note?: string) => void }) {
+  const [note, setNote] = useState("");
+  const chance = p.review?.probability !== undefined ? `${Math.round(p.review.probability * 100)}%` : null;
+  return (
+    <article className="mz-card u-RECOMMENDATION">
+      <div className="mz-spread">
+        <Link href={`/ops/trips/${p.tripId}`} className="mz-label">
+          {p.destination} →
+        </Link>
+        <span className="mz-tier t-TRAVELLER">Weather{chance ? ` · ${chance}` : ""}</span>
+      </div>
+      <h3 className="mz-display mz-h3">{p.headline}</h3>
+      <p className="mz-small mz-muted" style={{ margin: 0 }}>
+        {p.options[0]?.label ?? "No change prepared"} · open the trip for the twin&apos;s odds
+      </p>
+      <input className="mz-input" value={note} maxLength={240} placeholder={`Note for the traveller (optional)${chance ? ` — default: "${chance} chance of rain…"` : ""}`} onChange={(e) => setNote(e.target.value)} />
+      <div className="mz-row">
+        <button className="mz-btn mz-btn-solid mz-btn-sm" disabled={busy} onClick={() => onReview(p, "SEND", note)}>
+          Send to traveller
+        </button>
+        <button className="mz-btn mz-btn-ghost mz-btn-sm" disabled={busy} onClick={() => onReview(p, "DISMISS")}>
+          Keep internal
+        </button>
+      </div>
+    </article>
   );
 }

@@ -80,6 +80,11 @@ export interface ProposalRecord {
   agentNote?: string;
   /** Nodes the disruption touched directly (agent targets). */
   affectedNodeIds: string[];
+  /**
+   * Weather advisories: the system (sentinel / forecast) raises them for the operator first.
+   * Travellers only see them once an operator sends them, with the probability and a note.
+   */
+  review?: { state: "OPERATOR" | "SENT" | "DISMISSED"; probability?: number; note?: string; by?: string; at?: string };
 }
 
 export interface ActivityRecord {
@@ -138,8 +143,13 @@ const FRESHNESS_MS = 750;
 export class RevConflictError extends Error {
   constructor() {
     super("The data changed on another server; retrying");
+    this.name = "RevConflictError";
   }
 }
+
+/** By name too: after a dev hot-reload the cached adapter throws an older copy of the class. */
+const isRevConflict = (e: unknown) => e instanceof RevConflictError || (e instanceof Error && e.name === "RevConflictError");
+const WRITE_ATTEMPTS = 5;
 
 /**
  * Where the data lives. The file store is the default (dev, tests, single
@@ -229,7 +239,9 @@ export async function read<T>(fn: (db: Readonly<Db>) => T): Promise<T> {
 export function write<T>(fn: (db: Db) => T | Promise<T>): Promise<T> {
   const run = state.queue.catch(() => undefined).then(async () => {
     const a = await adapter();
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < WRITE_ATTEMPTS; attempt++) {
+      // Two servers on one database (e.g. dev + a test build): back off a little, with jitter.
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 50 * attempt + Math.random() * 100));
       const current = await fresh(attempt > 0);
       const draft = structuredClone(current);
       const result = await fn(draft);
@@ -249,7 +261,7 @@ export function write<T>(fn: (db: Db) => T | Promise<T>): Promise<T> {
         state.checkedAt = Date.now();
         return result;
       } catch (e) {
-        if (!(e instanceof RevConflictError)) throw e;
+        if (!isRevConflict(e)) throw e;
       }
     }
     throw new Error("Too many concurrent changes; please try again");

@@ -205,7 +205,7 @@ export async function neo4jAdapter(): Promise<StorageAdapter & { close(): Promis
           return Number(r.records[0].get("rev"));
         });
       } catch (e) {
-        if (e instanceof RevConflictError) throw e;
+        if (e instanceof RevConflictError || (e instanceof Error && e.name === "RevConflictError")) throw e;
         throw explain(e);
       } finally {
         await session.close();

@@ -46,6 +46,11 @@ function providers(tier: LlmTier, domain = false): Provider[] {
           : (process.env.GROQ_MODEL_DEEP || "openai/gpt-oss-120b"),
       jsonMode: true,
     });
+    // Groq's JSON mode occasionally rejects a generation (HTTP 400) or returns a wrong shape;
+    // one retry on the larger model is cheap and usually succeeds before falling back to Gemini.
+    if (tier === "fast") {
+      list.push({ id: "groq", baseUrl: "https://api.groq.com/openai/v1", apiKey: process.env.GROQ_API_KEY, model: process.env.GROQ_MODEL_DEEP || "openai/gpt-oss-120b", jsonMode: true });
+    }
   }
   if (process.env.GEMINI_API_KEY) {
     list.push({
