@@ -1756,3 +1756,361 @@ section[aria-label="Itinerary graph"] > .mz-panel:nth-child(2) .mz-btn-solid:hov
     transition: none;
   }
 }
+
+/* ══ HANDOFF (2026-09-27): styling for Aryan's new screens ═══════════════
+   Behaviour lives in the components; layout-only rules in
+   app.functional.css. Everything here is visual, via the mz-* hooks. */
+
+/* ── Chips in the new screens: soft pills ─────────────────────────────── */
+.mz-twin .mz-chip,
+.mz-stack > form.mz-panel .mz-chip,
+.mz-auth-card .mz-chip,
+.mz-shell .mz-row[role="group"] > .mz-chip {
+  min-height: 38px;
+  padding: 1px 16px 0;
+  border-radius: 100px;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  text-transform: capitalize;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s, transform 0.2s var(--mz-ease);
+}
+
+.mz-twin .mz-chip:active,
+.mz-stack > form.mz-panel .mz-chip:active,
+.mz-shell .mz-row[role="group"] > .mz-chip:active {
+  transform: scale(0.96);
+}
+
+/* typed tags (keywords, must-see) keep the traveller's own capitalisation */
+.mz-chip[title="Remove"] {
+  text-transform: none;
+}
+
+/* Interest chips: tap once = like (ink), again = avoid (Venetian red) */
+.mz-chip[data-avoid] {
+  border-color: var(--mz-red);
+  color: var(--mz-red);
+  background: rgba(184, 83, 79, 0.07);
+}
+
+/* ── New-trip form additions ──────────────────────────────────────────── */
+textarea.mz-input {
+  min-height: 96px;
+  padding: 12px 14px;
+  border: 1px solid var(--mz-line-strong);
+  border-radius: 8px;
+  background: var(--mz-paper);
+  line-height: 1.45;
+  resize: vertical;
+}
+
+textarea.mz-input:focus {
+  border-color: var(--mz-ink);
+}
+
+/* ── Destination suggestion cards ─────────────────────────────────────── */
+.mz-suggest-grid {
+  gap: 20px;
+}
+
+.mz-suggest-card.mz-panel {
+  padding: 20px 20px 18px;
+  border: 1px solid var(--mz-line-strong);
+  border-radius: 12px;
+  background: var(--mz-card);
+  box-shadow: 0 18px 36px -28px rgba(61, 45, 32, 0.45);
+  transition: transform 0.35s var(--mz-ease), box-shadow 0.35s;
+}
+
+.mz-suggest-card.mz-panel:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 24px 44px -26px rgba(61, 45, 32, 0.5);
+}
+
+.mz-suggest-card > .mz-h3 {
+  font-size: 1.6rem;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed var(--mz-line-strong);
+}
+
+/* ── Login / sign-up: Traveller / Operator as a segmented switch ─────── */
+.mz-auth-card > .mz-row[role="group"] {
+  display: inline-flex;
+  justify-self: start;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--mz-line-strong);
+  border-radius: 100px;
+}
+
+.mz-auth-card > .mz-row[role="group"] > .mz-chip {
+  min-height: 36px;
+  border-color: transparent;
+}
+
+.mz-auth-card > .mz-row[role="group"] > .mz-chip:not([aria-pressed="true"]):hover {
+  background: var(--mz-paper-deep);
+}
+
+/* ── Weather digital twin panel (trip page) ───────────────────────────── */
+.mz-panel.mz-twin {
+  position: relative;
+  margin-top: 56px;
+  padding: 28px 24px 24px;
+  border: 0;
+  border-radius: 0 0 14px 14px;
+  background: var(--mz-paper-deep);
+  gap: 18px;
+}
+
+/* torn-paper edge leading into the band, like the landing's transitions */
+.mz-panel.mz-twin::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -26px;
+  height: 27px;
+  background: var(--mz-paper-deep);
+  transform: scaleY(-1);
+  -webkit-mask: url("/images/torn-edge-down.avif") center / 100% 100% no-repeat;
+  mask: url("/images/torn-edge-down.avif") center / 100% 100% no-repeat;
+  pointer-events: none;
+}
+
+.mz-twin .mz-h2 {
+  font-size: clamp(1.8rem, 3.4vw, 2.6rem);
+  line-height: 1;
+  margin-top: 6px !important;
+}
+
+.mz-twin > p.mz-small {
+  padding: 10px 14px;
+  border-left: 2px solid var(--mz-slate);
+  background: rgba(75, 107, 148, 0.06);
+}
+
+/* what-if sliders read as a small mixing desk */
+.mz-twin-sliders {
+  padding: 16px;
+  border: 1px solid var(--mz-line);
+  border-radius: 10px;
+  background: var(--mz-card);
+}
+
+.mz-twin-sliders .mz-fader > .mz-label .mz-mono {
+  margin-left: 6px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--mz-ink);
+  color: var(--mz-paper);
+  letter-spacing: 0.02em;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+/* the flooding toggle spans the desk: checkbox and text on one line */
+.mz-twin-sliders > label.mz-row {
+  grid-column: 1 / -1;
+  flex-wrap: nowrap;
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px dashed var(--mz-line-strong);
+  cursor: pointer;
+}
+
+.mz-twin-sliders > label.mz-row > .mz-small {
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+.mz-twin-sliders > label.mz-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--mz-ink);
+}
+
+/* metric tiles: forecast value, what-if value (slate = proposed) */
+.mz-twin-metrics {
+  gap: 14px;
+}
+
+.mz-twin-metric {
+  padding: 14px 16px;
+  border: 1px solid var(--mz-line);
+  border-radius: 10px;
+  background: var(--mz-card);
+}
+
+.mz-twin-metric > .mz-label {
+  font-size: 0.64rem;
+  letter-spacing: 0.1em;
+  line-height: 1.35;
+}
+
+.mz-twin-metric > .mz-mono {
+  margin-top: auto;
+  font-family: Apris, "Times New Roman", serif;
+  font-size: 1.75rem;
+  line-height: 1.1;
+  color: var(--mz-ink);
+}
+
+.mz-twin-metric > .mz-mono strong {
+  font-weight: 500;
+  color: var(--mz-slate);
+}
+
+/* per-stop risk rows: no link arrow, a proper risk bar */
+.mz-twin .mz-list-item.mz-twin-stop {
+  min-height: 0;
+  padding: 14px 0;
+}
+
+.mz-twin .mz-list-item.mz-twin-stop::after {
+  content: none;
+}
+
+.mz-twin .mz-list-item.mz-twin-stop:hover {
+  padding-left: 0;
+}
+
+/* details get the width; bar and figures stack in a narrow right column */
+@media (min-width: 481px) {
+  .mz-twin .mz-twin-stop {
+    grid-template-columns: minmax(0, 1fr) 200px;
+    grid-template-rows: auto auto;
+    column-gap: 24px;
+    row-gap: 8px;
+  }
+
+  .mz-twin .mz-twin-stop > :first-child {
+    grid-row: 1 / span 2;
+  }
+
+  .mz-twin .mz-twin-stop > .mz-twin-bar {
+    grid-column: 2;
+    align-self: end;
+  }
+
+  .mz-twin .mz-twin-stop > .mz-mono {
+    grid-column: 2;
+    align-self: start;
+    text-align: right;
+    font-size: 0.72rem;
+    color: var(--mz-ink-soft);
+  }
+}
+
+.mz-twin .mz-twin-stop strong {
+  font-family: Apris, "Times New Roman", serif;
+  font-weight: 500;
+  font-size: 1.05rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--mz-ink);
+}
+
+.mz-twin-bar {
+  height: 10px;
+  border-radius: 6px;
+  background: rgba(61, 45, 32, 0.08);
+}
+
+.mz-twin-bar > span {
+  border-radius: 6px;
+  transition: width 0.6s var(--mz-ease), background-color 0.3s;
+}
+
+/* cascade / social / learned: tidy disclosure rows */
+.mz-twin details {
+  border-top: 1px solid var(--mz-line);
+  padding-top: 12px;
+}
+
+.mz-twin details > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--mz-ink);
+}
+
+.mz-twin details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.mz-twin details > summary::before {
+  content: "+";
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--mz-line-strong);
+  border-radius: 50%;
+  font-size: 0.8rem;
+  transition: transform 0.25s var(--mz-ease);
+}
+
+.mz-twin details[open] > summary::before {
+  transform: rotate(45deg);
+}
+
+/* ── Twin map + pins ──────────────────────────────────────────────────── */
+.mz-twin-map {
+  border-color: var(--mz-line-strong);
+  box-shadow: 0 20px 40px -30px rgba(61, 45, 32, 0.5);
+}
+
+.mz-twin-pin {
+  letter-spacing: 0.02em;
+  transition: transform 0.2s var(--mz-ease), box-shadow 0.2s;
+}
+
+.mz-twin-pin:hover {
+  transform: translateY(-2px) scale(1.08);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.3);
+}
+
+.mz-twin-pin.is-stop {
+  border-radius: 14px;
+}
+
+.mz-twin-pin.is-hotspot {
+  box-shadow: 0 0 0 4px rgba(184, 83, 79, 0.25), 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.mz-twin-pin.is-social {
+  box-shadow: 0 0 0 4px rgba(75, 107, 148, 0.22), 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.mz-twin-pin[data-locked] {
+  border-width: 3px;
+}
+
+/* ── Operator weather twin (/ops/twin): workload by hour ─────────────── */
+.mz-load-chart {
+  height: 160px;
+  padding: 0 0 22px;
+  border-bottom: 1px solid var(--mz-line-strong);
+  gap: 4px;
+}
+
+.mz-load-col > span {
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(to top, var(--mz-amber-soft), var(--mz-red));
+  transition: filter 0.2s, height 0.6s var(--mz-ease);
+}
+
+.mz-load-col:hover > span {
+  filter: brightness(1.12);
+}
+
+.mz-load-col > em {
+  bottom: -20px;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  color: var(--mz-ink-soft);
+  opacity: 1;
+}
