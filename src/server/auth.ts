@@ -92,6 +92,8 @@ export const SignupSchema = z.object({
 export const LoginSchema = z.object({
   email: z.string().transform((e) => e.trim().toLowerCase()),
   password: z.string(),
+  /** The persona the person chose on the login screen; a mismatch is refused, not silently switched. */
+  as: z.enum(["traveller", "operator"]).optional(),
 });
 
 const toSession = (u: UserRecord): SessionUser => ({ id: u.id, email: u.email, name: u.name, role: u.role, guest: !!u.guest });
@@ -158,6 +160,8 @@ export async function login(input: z.infer<typeof LoginSchema>): Promise<Session
   // Hash even for unknown emails so timing doesn't reveal which accounts exist.
   const hash = await hashPassword(input.password, user?.salt ?? "0".repeat(32));
   if (!user || !safeEqualHex(hash, user.passwordHash)) throw new HttpError(401, "Wrong email or password");
+  if (input.as === "operator" && user.role !== "operator") throw new HttpError(403, "This is a traveller account. Switch to “Traveller” to log in.");
+  if (input.as === "traveller" && user.role !== "traveller") throw new HttpError(403, "This is an operator account. Switch to “Operator” to log in.");
   return toSession(user);
 }
 

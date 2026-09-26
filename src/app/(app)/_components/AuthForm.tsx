@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "./api";
 
-export function AuthForm({ mode, operatorMode, guest = false }: { mode: "login" | "signup"; operatorMode: "invite" | "open-dev" | "disabled"; guest?: boolean }) {
+type Role = "traveller" | "operator";
+
+export function AuthForm({ mode, operatorMode, guest = false, initialRole = "traveller" }: { mode: "login" | "signup"; operatorMode: "invite" | "open-dev" | "disabled"; guest?: boolean; initialRole?: Role }) {
   const router = useRouter();
-  const [role, setRole] = useState<"traveller" | "operator">("traveller");
+  const [role, setRole] = useState<Role>(initialRole === "operator" && operatorMode === "disabled" && mode === "signup" ? "traveller" : initialRole);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -19,7 +21,7 @@ export function AuthForm({ mode, operatorMode, guest = false }: { mode: "login" 
     try {
       const body =
         mode === "login"
-          ? { email: f.get("email"), password: f.get("password") }
+          ? { email: f.get("email"), password: f.get("password"), as: role }
           : { email: f.get("email"), password: f.get("password"), name: f.get("name"), role, inviteCode: f.get("inviteCode") || undefined };
       const { user } = await api<{ user: { role: string } }>(`/api/auth/${mode}`, { body });
       router.replace(user.role === "operator" ? "/ops" : "/trip");
@@ -36,21 +38,30 @@ export function AuthForm({ mode, operatorMode, guest = false }: { mode: "login" 
         <Link href="/" className="mz-brand">
           Musafir
         </Link>
-        <h1 className="mz-display mz-h1">{mode === "login" ? "Welcome back" : guest ? "Save your trips" : "Begin the journey"}</h1>
-        {guest && mode === "signup" && <p className="mz-note">You&apos;re using Musafir as a guest. Add an email and password to keep your trips on any device — nothing you planned is lost.</p>}
-        {mode === "login" && (
+        <h1 className="mz-display mz-h1">
+          {mode === "login" ? (role === "operator" ? "Operator log in" : "Welcome back") : role === "operator" ? "Operator account" : guest ? "Save your trips" : "Begin the journey"}
+        </h1>
+        <div className="mz-row" role="group" aria-label="Account type">
+          {(["traveller", "operator"] as const).map((r) => (
+            <button
+              key={r}
+              type="button"
+              className="mz-chip"
+              aria-pressed={role === r}
+              onClick={() => setRole(r)}
+              disabled={mode === "signup" && r === "operator" && operatorMode === "disabled"}
+              title={mode === "signup" && r === "operator" && operatorMode === "disabled" ? "Operator sign-up is disabled on this deployment" : undefined}
+            >
+              {r === "traveller" ? "Traveller" : "Operator"}
+            </button>
+          ))}
+        </div>
+        {guest && mode === "signup" && role === "traveller" && <p className="mz-note">You&apos;re using Musafir as a guest. Add an email and password to keep your trips on any device — nothing you planned is lost.</p>}
+        {role === "operator" && <p className="mz-note">Operators approve changes that touch locked bookings or money, set autonomy rules and see every active trip.{mode === "signup" && operatorMode === "invite" ? " You need the invite code from your Musafir admin." : ""}</p>}
+        {mode === "login" && role === "traveller" && (
           <Link className="mz-btn mz-btn-ghost" href="/api/auth/guest?next=/trip">
             Continue without an account
           </Link>
-        )}
-        {mode === "signup" && !guest && (
-          <div className="mz-row" role="group" aria-label="Account type">
-            {(["traveller", "operator"] as const).map((r) => (
-              <button key={r} type="button" className="mz-chip" aria-pressed={role === r} onClick={() => setRole(r)} disabled={r === "operator" && operatorMode === "disabled"}>
-                {r === "traveller" ? "I'm travelling" : "I'm an operator"}
-              </button>
-            ))}
-          </div>
         )}
         {mode === "signup" && (
           <label className="mz-field">
@@ -69,7 +80,7 @@ export function AuthForm({ mode, operatorMode, guest = false }: { mode: "login" 
         {mode === "signup" && role === "operator" && operatorMode === "invite" && (
           <label className="mz-field">
             <span className="mz-label">Operator invite code</span>
-            <input className="mz-input" name="inviteCode" required />
+            <input className="mz-input" name="inviteCode" type="password" required autoComplete="off" />
           </label>
         )}
         {mode === "signup" && role === "operator" && operatorMode === "open-dev" && (
@@ -82,11 +93,11 @@ export function AuthForm({ mode, operatorMode, guest = false }: { mode: "login" 
         <p className="mz-small mz-muted">
           {mode === "login" ? (
             <>
-              New here? <Link href="/signup">Create an account</Link>
+              New here? <Link href={role === "operator" ? "/signup?as=operator" : "/signup"}>Create {role === "operator" ? "an operator" : "an"} account</Link>
             </>
           ) : (
             <>
-              Have an account? <Link href="/login">Log in</Link>
+              Have an account? <Link href={role === "operator" ? "/login?as=operator" : "/login"}>Log in</Link>
             </>
           )}
         </p>

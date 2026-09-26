@@ -6,7 +6,7 @@
  * Supabase Realtime is the multi-instance path.
  */
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import { rankMealOptions, noClaimDietChecker } from "@/lib/musafir/dining.ts";
+import { rankMealOptions, osmDietChecker } from "@/lib/musafir/dining.ts";
 import { estimateLeg } from "@/lib/musafir/geo.ts";
 import { consensus, type Vote } from "@/lib/musafir/groupvote.ts";
 import { newId } from "@/lib/musafir/ids.ts";
@@ -70,7 +70,7 @@ export async function createRoom(user: SessionUser, tripId: string, dayIndex: nu
     .map((v) => ({ id: v.osmId, name: v.nameEn ?? v.name, lat: v.lat, lng: v.lng, diet: v.diet, venue: v }));
   await warmLegs([before.location, ...(after ? [after.location] : []), ...candidates]).catch(() => undefined);
   const minutes = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => cachedLeg(a, b)?.durationMinutes ?? estimateLeg(a, b).durationMinutes;
-  const ranked = rankMealOptions(before.location, after?.location, candidates, rec.trip.dietaryRestrictions, minutes, noClaimDietChecker, 3);
+  const ranked = rankMealOptions(before.location, after?.location, candidates, rec.trip.dietaryRestrictions, minutes, osmDietChecker, 3);
 
   const options: RoomOption[] = ranked.map((o) => ({
     id: o.candidate.id,

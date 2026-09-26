@@ -3,7 +3,7 @@
  * needed and ranks candidates; an LLM is consulted only when the best options
  * are too close to separate on open data.
  */
-import { noClaimDietChecker, type DietChecker } from "./dining.ts";
+import { osmDietChecker, type DietChecker } from "./dining.ts";
 import { openStatus, type OpenStatus } from "./opening-hours.ts";
 import type { ItineraryNode, NodeCategory, TripPatch } from "./schemas.ts";
 import { toMinutes } from "./time.ts";
@@ -57,7 +57,7 @@ export function rankReplacements<C extends ReplacementCandidate>(
 ): { ranked: RankedReplacement<C>[]; ambiguous: boolean } {
   const start = toMinutes(target.timeSlot.start);
   const end = start + target.timeSlot.durationMinutes;
-  const check = opts.dietCheck ?? noClaimDietChecker;
+  const check = opts.dietCheck ?? osmDietChecker;
   const ranked = candidates
     .map((c) => {
       const hours = openStatus(c.openingHours, opts.date, start, end);

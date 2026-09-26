@@ -3,15 +3,23 @@
  * dietary fit, then travel time from the previous stop (and to the next).
  *
  * Dietary fit comes from an injected checker over OSM `diet:*` tags. The
- * default checker makes no claims: with restrictions it returns "unverified"
- * for everything. Parth's `auditors/diet.ts` plugs in here (CLAUDE.md §10).
- * An LLM must never decide dietary safety.
+ * default is `osmDietChecker` (Parth's `auditors/diet.ts`): verified only when
+ * the tags say so, otherwise "unverified". An LLM must never decide dietary safety.
  */
+import { auditDiet } from "./auditors/diet.ts";
+
 export type DietStatus = "not-needed" | "verified" | "unverified" | "conflicts";
 
 export type DietChecker = (tags: Readonly<Record<string, string>> | undefined, restrictions: readonly string[]) => DietStatus;
 
 export const noClaimDietChecker: DietChecker = (_tags, restrictions) => (restrictions.length === 0 ? "not-needed" : "unverified");
+
+/** Reads OSM diet:* tags (Parth's auditor). Never claims safety beyond what the tags say. */
+export const osmDietChecker: DietChecker = (tags, restrictions) => {
+  if (restrictions.length === 0) return "not-needed";
+  const v = auditDiet(tags ?? {}, restrictions).verdict;
+  return v === "VERIFIED" ? "verified" : v === "CONFLICT" ? "conflicts" : v === "NO_REQUIREMENTS" ? "not-needed" : "unverified";
+};
 
 const RANK: Record<DietStatus, number> = { "not-needed": 0, verified: 0, unverified: 1, conflicts: 2 };
 
@@ -36,7 +44,7 @@ export function rankMealOptions<C extends MealCandidate>(
   candidates: readonly C[],
   restrictions: readonly string[],
   minutes: (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => number,
-  check: DietChecker = noClaimDietChecker,
+  check: DietChecker = osmDietChecker,
   limit = 3,
 ): MealOption<C>[] {
   return candidates

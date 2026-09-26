@@ -14,7 +14,7 @@
  * and dinner inserted near the preceding stop when the day spans a meal window.
  */
 import { estimateLeg, haversineMeters, type LegEstimate } from "./geo.ts";
-import { noClaimDietChecker, type DietChecker, type DietStatus } from "./dining.ts";
+import { osmDietChecker, type DietChecker, type DietStatus } from "./dining.ts";
 import { openStatus } from "./opening-hours.ts";
 import type { ItineraryNode, NodeCategory, VibeConfig } from "./schemas.ts";
 import { fromMinutes, MINUTES_PER_DAY } from "./time.ts";
@@ -217,7 +217,7 @@ export function planDays(input: PlanInput): PlannedDay[] {
     const meal = (window: { from: number; to: number }) => {
       const here = prev ?? input.center;
       const restrictions = input.dietary ?? [];
-      const check = input.dietCheck ?? noClaimDietChecker;
+      const check = input.dietCheck ?? osmDietChecker;
       const DIET_RANK = { "not-needed": 0, verified: 0, unverified: 1, conflicts: 2 } as const;
       // Never place food that conflicts with a restriction; prefer verified fits, then proximity.
       const mealEnd = window.from + BASE_VISIT_MINUTES.DINING;
