@@ -21,3 +21,9 @@
 
 /* Essentials pages */
 .mz-btn.is-disabled { opacity: 0.4; pointer-events: none; }
+
+/* Destination suggestion cards (TripList) — layout only; Lakshita styles in app.css. */
+.mz-suggest-grid { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); }
+.mz-suggest-card { display: flex; flex-direction: column; gap: 8px; }
+.mz-suggest-card > button { margin-top: auto; align-self: flex-start; }
+.mz-chip[data-avoid] { text-decoration: line-through; opacity: 0.8; }
