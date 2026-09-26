@@ -1,7 +1,11 @@
 /**
- * Thin LLM gateway: one JSON-mode chat call, validated with zod.
+ * Thin LLM gateway: one JSON chat call, validated with zod.
  * Groq first (OpenAI-compatible, JSON mode on all models), Gemini's
  * OpenAI-compatible endpoint as fallback. No SDK, no agent framework.
+ *
+ * Domain tasks (`domain: true` — weather-impact and social-signal reading for
+ * the Digital Twin) go to Musafir's Nugen-aligned model first (NUGEN_API_KEY +
+ * NUGEN_MODEL, produced by scripts/nugen-align.mjs), with Groq/Gemini behind it.
  *
  * Model ids are env-configurable because provider catalogs change; defaults are
  * from the providers' docs as of 2026-09. With no keys configured the call
@@ -17,10 +21,19 @@ interface Provider {
   baseUrl: string;
   apiKey: string;
   model: string;
+  /** Provider supports response_format json_object; otherwise JSON is extracted from the text. */
+  jsonMode: boolean;
 }
 
-function providers(tier: LlmTier): Provider[] {
+export function nugenProvider(): Provider | null {
+  if (!process.env.NUGEN_API_KEY || !process.env.NUGEN_MODEL) return null;
+  return { id: "nugen", baseUrl: "https://api.nugen.in/api/v3/inference", apiKey: process.env.NUGEN_API_KEY, model: process.env.NUGEN_MODEL, jsonMode: false };
+}
+
+function providers(tier: LlmTier, domain = false): Provider[] {
   const list: Provider[] = [];
+  const nugen = nugenProvider();
+  if (nugen && domain) list.push(nugen);
   if (process.env.GROQ_API_KEY) {
     list.push({
       id: "groq",
@@ -30,6 +43,7 @@ function providers(tier: LlmTier): Provider[] {
         tier === "fast"
           ? (process.env.GROQ_MODEL_FAST || "openai/gpt-oss-20b")
           : (process.env.GROQ_MODEL_DEEP || "openai/gpt-oss-120b"),
+      jsonMode: true,
     });
   }
   if (process.env.GEMINI_API_KEY) {
@@ -38,6 +52,7 @@ function providers(tier: LlmTier): Provider[] {
       baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
       apiKey: process.env.GEMINI_API_KEY,
       model: process.env.GEMINI_MODEL || "gemini-3.8-flash",
+      jsonMode: true,
     });
   }
   return list;
@@ -55,8 +70,10 @@ export async function llmJson<T>(opts: {
   user: string;
   schema: z.ZodType<T>;
   timeoutMs?: number;
+  /** Musafir-domain task: try the Nugen-aligned model first. */
+  domain?: boolean;
 }): Promise<LlmResult<T>> {
-  const list = providers(opts.tier);
+  const list = providers(opts.tier, opts.domain);
   if (list.length === 0) return { ok: false, reason: "no LLM key configured (GROQ_API_KEY / GEMINI_API_KEY)" };
 
   const failures: string[] = [];
@@ -72,7 +89,7 @@ export async function llmJson<T>(opts: {
         body: JSON.stringify({
           model: p.model,
           temperature: 0,
-          response_format: { type: "json_object" },
+          ...(p.jsonMode ? { response_format: { type: "json_object" } } : { max_tokens: 700 }),
           messages: [
             { role: "system", content: opts.system },
             { role: "user", content: opts.user },
@@ -89,7 +106,7 @@ export async function llmJson<T>(opts: {
         failures.push(`${p.id} empty response`);
         continue;
       }
-      const parsed = opts.schema.safeParse(JSON.parse(content));
+      const parsed = opts.schema.safeParse(parseJsonLoose(content));
       if (!parsed.success) {
         failures.push(`${p.id} returned JSON that failed validation`);
         continue;
@@ -102,4 +119,20 @@ export async function llmJson<T>(opts: {
     }
   }
   return { ok: false, reason: failures.join("; ") };
+}
+
+/** JSON from a model reply: whole text, else the first {...} block (for providers without JSON mode). */
+function parseJsonLoose(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start === -1 || end <= start) return null;
+    try {
+      return JSON.parse(text.slice(start, end + 1));
+    } catch {
+      return null;
+    }
+  }
 }

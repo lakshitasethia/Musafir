@@ -25,7 +25,7 @@ const NOMINATIM_COOLDOWN_MS = 10 * 60_000;
 /** A provider told us to slow down (HTTP 429). */
 export class RateLimitError extends Error {
   constructor(host: string) {
-    super(`OpenStreetMap search (${host}) is rate-limiting us — try again in a few minutes`);
+    super(`${host} is rate-limiting us — try again in a few minutes`);
   }
 }
 
