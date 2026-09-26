@@ -48,10 +48,10 @@ export function TestimonialsSection({ sectionRef }: TestimonialsSectionProps) {
 
   return (
     <div className="section_testimonials" ref={sectionRef}>
-      {/* Top transition - torn paper edge from journey section */}
+      {/* Top transition - continuous torn paper edge from journey section */}
       <div className="testimonials_transition-top-wrp">
         <img
-          src="/images/num-fin.avif"
+          src="/images/torn-edge-down.avif"
           alt=""
           className="testimonials_transition-top"
         />

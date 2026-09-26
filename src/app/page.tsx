@@ -9,6 +9,7 @@ import { LogoSvg } from "./components/LogoSvg";
 import { TransitionGridSvg } from "./components/TransitionGridSvg";
 import { JourneySection } from "./components/JourneySection";
 import { TestimonialsSection } from "./components/TestimonialsSection";
+import { FooterSection } from "./components/FooterSection";
 
 export default function FlywardExperience() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -461,7 +462,10 @@ export default function FlywardExperience() {
       {/* 6. SECTION TESTIMONIALS ("TRUSTED BY TRAVELERS WHO RETURN") */}
       <TestimonialsSection />
 
-      {/* 7. BOTTOM-LEFT PRIVACY BADGE (As seen in the screenshots) */}
+      {/* 7. SECTION FOOTER */}
+      <FooterSection />
+
+      {/* 8. BOTTOM-LEFT PRIVACY BADGE (As seen in the screenshots) */}
       <div
         className="cookie_badge"
         title="Privacy Preferences"

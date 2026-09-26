@@ -959,12 +959,14 @@ a {
   );
 }
 
-/* Top transition - sunset/mountain edge flowing from journey */
+/* Top transition - continuous torn paper edge flowing from journey */
 .testimonials_transition-top-wrp {
   position: relative;
   width: 100%;
-  z-index: 2;
-  margin-bottom: -1px;
+  z-index: 5;
+  margin-top: -1px;
+  line-height: 0;
+  pointer-events: none;
 }
 
 .testimonials_transition-top {
@@ -973,11 +975,12 @@ a {
   display: block;
   object-fit: cover;
   pointer-events: none;
+  filter: drop-shadow(0 4px 8px rgba(61, 45, 32, 0.08));
 }
 
 /* Padding overrides */
 .padding-section-bottom-25 {
-  padding-top: 12rem;
+  padding-top: 4rem;
   padding-bottom: 30vh;
 }
 
@@ -1193,3 +1196,291 @@ a {
   background-color: #27ae60;
   border-radius: 2px;
 }
+
+/* ==========================================================================
+   FOOTER SECTION STYLES (MATCHING FLYWARD CINEMATIC AESTHETIC)
+   ========================================================================== */
+
+.footer_wrapper {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  background-color: #14100e;
+  color: #ffffff;
+  font-family: 'Founders Grotesk Text', Arial, sans-serif;
+}
+
+/* Dedicated blurred background layers */
+.footer_bg-container {
+  position: absolute;
+  inset: -50px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.footer_bg-scenic {
+  position: absolute;
+  inset: -30px;
+  background-image: url('/images/footer-final-bg.webp'), url('/images/footer-final-bg.jpg');
+  background-size: cover;
+  background-position: center top;
+  filter: blur(10px);
+  transform: scale(1.08);
+}
+
+.footer_bg-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(20, 16, 14, 0.22) 0%,
+    rgba(18, 14, 12, 0.38) 35%,
+    rgba(12, 10, 9, 0.72) 80%,
+    rgba(10, 8, 7, 0.88) 100%
+  );
+}
+
+/* Foreground content container */
+.section_footer {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  min-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  box-sizing: border-box;
+  padding-top: 6rem;
+}
+
+.footer_content {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.footer_main {
+  width: 100%;
+  padding-left: 2.5rem;
+  padding-right: 2.5rem;
+  box-sizing: border-box;
+}
+
+/* Top column row & right-aligned accreditation */
+.footer_top-wrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  width: 100%;
+  margin-bottom: 2.5rem;
+  position: relative;
+}
+
+.footer_grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(140px, 1fr));
+  gap: 2.5rem;
+  width: 50%;
+  max-width: 50%;
+}
+
+.footer_column {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.footer_column-heading {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+  display: block;
+}
+
+.footer_column-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.footer_link {
+  font-size: 1.125rem;
+  font-weight: 400;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  text-decoration: none;
+  transition: opacity 0.2s ease;
+  cursor: pointer;
+  display: inline-block;
+}
+
+.footer_link:hover {
+  opacity: 0.6;
+}
+
+.footer_text {
+  font-size: 1.125rem;
+  font-weight: 400;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  display: block;
+}
+
+.footer_text-nowrap {
+  white-space: nowrap;
+}
+
+/* Right accreditation block */
+.footer_accreditation {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: 0.01em;
+  font-weight: 400;
+}
+
+.footer_accreditation-item {
+  white-space: nowrap;
+}
+
+/* Bottom legal row */
+.footer_bottom {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: center;
+  width: 100%;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 0.01em;
+  padding-top: 2rem;
+  padding-bottom: 2.25rem;
+}
+
+.footer_bottom-left {
+  text-align: left;
+}
+
+.footer_bottom-center {
+  text-align: center;
+}
+
+.footer_bottom-links {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.footer_legal-link {
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: none;
+  transition: opacity 0.2s ease;
+}
+
+.footer_legal-link:hover {
+  opacity: 0.6;
+}
+
+/* Giant FLYWARD typography signature */
+.footer_logo-wrapper {
+  width: 100%;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  margin-bottom: -2.8vw;
+  line-height: 0;
+  pointer-events: none;
+}
+
+.footer_logo {
+  width: 100%;
+  height: auto;
+  display: block;
+  color: #ffffff;
+}
+
+/* Responsive adjustments */
+@media (max-width: 991px) {
+  .section_footer {
+    min-height: auto;
+    padding-top: 4rem;
+  }
+
+  .footer_top-wrapper {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2.5rem;
+  }
+
+  .footer_grid {
+    width: 100%;
+    max-width: 100%;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+  }
+
+  .footer_accreditation {
+    align-items: flex-start;
+    text-align: left;
+    margin-top: 0.5rem;
+    margin-bottom: 0;
+  }
+
+  .footer_bottom {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+    text-align: left;
+    padding-top: 1.5rem;
+    padding-bottom: 1.5rem;
+  }
+
+  .footer_bottom-center {
+    text-align: left;
+  }
+
+  .footer_bottom-links {
+    justify-content: flex-start;
+  }
+
+  .footer_logo-wrapper {
+    margin-bottom: -3vw;
+  }
+}
+
+@media (max-width: 767px) {
+  .footer_main {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+  }
+
+  .footer_grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+  }
+
+  .footer_column-location {
+    grid-column: span 2;
+  }
+
+  .footer_bottom {
+    margin-top: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .footer_logo-wrapper {
+    margin-bottom: -3.5vw;
+  }
+}
