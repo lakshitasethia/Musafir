@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { commuteBand } from "@/lib/musafir/geo.ts";
 import { applyPatches } from "@/lib/musafir/reducer.ts";
 import { newId } from "@/lib/musafir/ids.ts";
@@ -520,7 +520,7 @@ function VibePanel({ vibe, busy, onSave }: { vibe: VibeConfig; busy: boolean; on
   const [v, setV] = useState(vibe);
   const dirty = JSON.stringify(v) !== JSON.stringify(vibe);
   return (
-    <div className="mz-panel mz-stack">
+    <div className="mz-panel mz-stack mz-vibe">
       <div className="mz-panel-title">
         <span className="mz-label">Vibe equalizer</span>
         <button className="mz-btn mz-btn-sm" disabled={!dirty || busy} onClick={() => onSave(v)}>
@@ -531,7 +531,8 @@ function VibePanel({ vibe, busy, onSave }: { vibe: VibeConfig; busy: boolean; on
         Pacing tunes self-healing: fast pacing protects the number of stops; slow pacing would rather skip one than rush it.
       </p>
       {VIBE_FADERS.map((f) => (
-        <div key={f.key} className="mz-fader">
+        // --v / --lean let CSS grow the side the fader leans toward
+        <div key={f.key} className="mz-fader" style={{ "--v": v[f.key], "--lean": Math.abs(v[f.key] - 0.5) * 2 } as CSSProperties}>
           <span className="mz-label">{f.label}</span>
           <input type="range" min={0} max={1} step={0.05} value={v[f.key]} aria-label={f.label} onChange={(e) => setV({ ...v, [f.key]: Number(e.target.value) })} />
           <div className="mz-fader-ends">
