@@ -353,7 +353,8 @@ a {
 
 .hero_mask-inner {
   position: relative;
-  width: 100vw;
+  /* resting size of the Asia cutout (HERO_MASK_REST_VW in page.tsx) */
+  width: 145vw;
   height: 100%;
   display: flex;
   flex-flow: column;
@@ -1247,6 +1248,7 @@ a {
 .story_text {
   margin: 0.9em 0 0;
   font-family: 'Founders Grotesk Text', Arial, sans-serif;
+  font-style: italic;
   font-size: 1em;
   line-height: 1.42;
   color: var(--dark-umber-500);

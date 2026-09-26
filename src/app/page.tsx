@@ -13,6 +13,9 @@ import { JourneySection } from "./components/JourneySection";
 import { TestimonialsSection } from "./components/TestimonialsSection";
 import { FooterSection } from "./components/FooterSection";
 
+// Resting width of the Asia cutout, matched by .hero_mask-inner in globals.css.
+const HERO_MASK_REST_VW = 145;
+
 export default function MusafirExperience() {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomImgRef = useRef<HTMLImageElement>(null);
@@ -56,7 +59,8 @@ export default function MusafirExperience() {
       // ---- derived values ----
       // Hero mask zoom (Webflow a-8: 0 -> 35% of the 100vh scroll range)
       const maskProgress = Math.min(Math.max(scrollY / (viewportHeight * 0.35), 0), 1);
-      const maskWidth = 100 + maskProgress * 650; // 100vw -> 750vw
+      // Rests at 145vw so Asia fills the first view, then zooms to 750vw.
+      const maskWidth = HERO_MASK_REST_VW + maskProgress * (750 - HERO_MASK_REST_VW);
       const bgScale = 1.2 - maskProgress * 0.2; // 1.2 -> 1.0
       const heroInView = scrollY < viewportHeight * 2;
 
