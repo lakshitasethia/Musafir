@@ -13,7 +13,8 @@
  * with its nearest neighbours), ordered by nearest-neighbour walk, with lunch
  * and dinner inserted near the preceding stop when the day spans a meal window.
  */
-import { estimateLeg, haversineMeters } from "./geo.ts";
+import { estimateLeg, haversineMeters, type LegEstimate } from "./geo.ts";
+import { noClaimDietChecker, type DietChecker, type DietStatus } from "./dining.ts";
 import type { ItineraryNode, NodeCategory, VibeConfig } from "./schemas.ts";
 import { fromMinutes, MINUTES_PER_DAY } from "./time.ts";
 
@@ -30,6 +31,8 @@ export interface PlaceCandidate {
   kind: string;
   openingHours?: string;
   source: string;
+  /** OSM `diet:*` tags for eateries. */
+  diet?: Record<string, string>;
 }
 
 export const BASE_VISIT_MINUTES: Record<NodeCategory, number> = {
@@ -97,6 +100,11 @@ export interface PlanInput {
   /** Optional curator ranking: sourceIds in preferred order; boosts those places. */
   curatedOrder?: string[];
   idFactory: () => string;
+  /** Routed legs between candidates (e.g. OSRM table); falls back to Haversine estimates. */
+  leg?: (a: PlaceCandidate, b: PlaceCandidate) => LegEstimate | undefined;
+  /** Traveller's dietary restrictions and the checker for OSM diet tags (default makes no claims). */
+  dietary?: string[];
+  dietCheck?: DietChecker;
 }
 
 export interface PlannedDay {
@@ -136,6 +144,9 @@ export function planDays(input: PlanInput): PlannedDay[] {
   const sights = unique.filter((c) => c.category !== "DINING").sort(byScore);
   const food = unique.filter((c) => c.category === "DINING").sort(byScore);
 
+  const travelMinutes = (a: { lat: number; lng: number }, b: PlaceCandidate) =>
+    ("sourceId" in a && input.leg?.(a as PlaceCandidate, b)?.durationMinutes) || estimateLeg(a, b).durationMinutes;
+
   return input.days.map((d) => {
     // 1. Cluster: every remaining sight is tried as a seed with its nearest
     //    neighbours; the most valuable *compact* group wins the day.
@@ -167,8 +178,8 @@ export function planDays(input: PlanInput): PlannedDay[] {
     let hadLunch = false;
     let hadDinner = false;
     let truncated = 0;
-    const place = (c: PlaceCandidate, minutes: number): boolean => {
-      const travel = prev ? estimateLeg(prev, c).durationMinutes : 0;
+    const place = (c: PlaceCandidate, minutes: number, diet?: DietStatus): boolean => {
+      const travel = prev ? travelMinutes(prev, c) : 0;
       const start = Math.ceil((cursor + travel) / SNAP) * SNAP;
       const duration = Math.max(20, Math.round((minutes * shape.visitScale) / SNAP) * SNAP);
       if (start + duration > Math.min(shape.dayEnd, MINUTES_PER_DAY - 1)) return false;
@@ -190,6 +201,7 @@ export function planDays(input: PlanInput): PlannedDay[] {
           costSource: "unknown (no price in open data)",
           plannedBy: "planner",
           ...(c.openingHours ? { openingHours: c.openingHours } : {}),
+          ...(diet && diet !== "not-needed" ? { diet } : {}),
         },
       });
       cursor = start + duration;
@@ -198,12 +210,19 @@ export function planDays(input: PlanInput): PlannedDay[] {
     };
     const meal = (window: { from: number; to: number }) => {
       const here = prev ?? input.center;
-      const pick = food
+      const restrictions = input.dietary ?? [];
+      const check = input.dietCheck ?? noClaimDietChecker;
+      const DIET_RANK = { "not-needed": 0, verified: 0, unverified: 1, conflicts: 2 } as const;
+      // Never place food that conflicts with a restriction; prefer verified fits, then proximity.
+      const [best] = food
         .filter((f) => haversineMeters(here, f) < input.radiusMeters)
-        .sort((a, b) => haversineMeters(here, a) - haversineMeters(here, b) || byScore(a, b))[0];
-      if (!pick) return;
-      cursor = Math.max(cursor, window.from - (prev ? estimateLeg(prev, pick).durationMinutes : 0));
-      if (place(pick, BASE_VISIT_MINUTES.DINING)) food.splice(food.indexOf(pick), 1);
+        .map((f) => ({ f, diet: check(f.diet, restrictions) }))
+        .filter((x) => x.diet !== "conflicts")
+        .sort((a, b) => DIET_RANK[a.diet] - DIET_RANK[b.diet] || haversineMeters(here, a.f) - haversineMeters(here, b.f) || byScore(a.f, b.f));
+      if (!best) return;
+      const pick = best.f;
+      cursor = Math.max(cursor, window.from - (prev ? travelMinutes(prev, pick) : 0));
+      if (place(pick, BASE_VISIT_MINUTES.DINING, best.diet)) food.splice(food.indexOf(pick), 1);
     };
     for (const c of ordered) {
       if (!hadLunch && cursor >= LUNCH_WINDOW.from - 30 && cursor <= LUNCH_WINDOW.to) {
@@ -219,6 +238,8 @@ export function planDays(input: PlanInput): PlannedDay[] {
         sights.push(c); // give unused places back to later days
       }
     }
+    // The last sight may end right at a meal time; don't skip the meal just because no sight follows.
+    if (!hadLunch && cursor >= LUNCH_WINDOW.from - 30 && cursor <= LUNCH_WINDOW.to) meal(LUNCH_WINDOW);
     if (!hadDinner && shape.dayEnd >= DINNER_WINDOW.from + 60 && cursor <= DINNER_WINDOW.to) meal(DINNER_WINDOW);
     sights.sort(byScore);
 

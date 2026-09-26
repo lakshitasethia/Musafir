@@ -41,7 +41,7 @@ import {
   type VibeConfig,
 } from "./schemas.ts";
 import { MINUTES_PER_DAY, fromMinutes, isRepresentableMinute, toMinutes } from "./time.ts";
-import { dailyFatigueScore, estimateLeg, rebuildTransitSegments } from "./geo.ts";
+import { dailyFatigueScore, estimateLeg, rebuildTransitSegments, type LegLookup } from "./geo.ts";
 import { newId } from "./ids.ts";
 
 export interface HealingPolicy {
@@ -118,6 +118,8 @@ export interface CascadeOptions {
   transitMinutes?: (from: ItineraryNode, to: ItineraryNode) => number;
   idFactory?: () => string;
   policy?: Partial<HealingPolicy>;
+  /** Routed legs (e.g. cached OSRM) used for the preview's transit segments. */
+  routed?: LegLookup;
 }
 
 export interface CascadeResult {
@@ -200,7 +202,7 @@ export function heal(dayInput: DayScheduleInput, disruption: Disruption, options
   const transit =
     options.transitMinutes ??
     ((a: ItineraryNode, b: ItineraryNode) =>
-      knownSegments.get(`${a.id}>${b.id}`) ?? estimateLeg(a.location, b.location).durationMinutes);
+      options.routed?.(a, b)?.durationMinutes ?? knownSegments.get(`${a.id}>${b.id}`) ?? estimateLeg(a.location, b.location).durationMinutes);
 
   const slots: Slot[] = sortNodes(day.nodes).map((node, order) => {
     const start = toMinutes(node.timeSlot.start);
@@ -235,7 +237,7 @@ export function heal(dayInput: DayScheduleInput, disruption: Disruption, options
   const affected: string[] = [];
   const finish = (): CascadeResult => {
     const patches = buildPatches(slots, day.dayIndex, disruption.reason, idFactory);
-    return { patches, conflicts, preview: applyPatches(day, patches), affectedNodeIds: affected };
+    return { patches, conflicts, preview: applyPatches(day, patches, { routed: options.routed }), affectedNodeIds: affected };
   };
   const requireSlot = (id: string) => {
     const s = byId.get(id);
@@ -475,7 +477,7 @@ function buildPatches(slots: readonly Slot[], dayIndex: number, reason: string, 
  * returned, or a ScheduleError is thrown and nothing changes. Transit segments
  * and the daily fatigue score are recomputed for the new ordering.
  */
-export function applyPatches(dayInput: DayScheduleInput, patchesInput: readonly unknown[]): DaySchedule {
+export function applyPatches(dayInput: DayScheduleInput, patchesInput: readonly unknown[], opts: { routed?: LegLookup } = {}): DaySchedule {
   const day = DayScheduleSchema.parse(dayInput);
   assertUniqueIds(day.nodes);
   const nodes = new Map(day.nodes.map((n) => [n.id, n]));
@@ -536,7 +538,7 @@ export function applyPatches(dayInput: DayScheduleInput, patchesInput: readonly 
       throw new ScheduleError(`"${n.title}" would end after midnight`);
     }
   }
-  const transitSegments = rebuildTransitSegments(ordered, day.transitSegments);
+  const transitSegments = rebuildTransitSegments(ordered, day.transitSegments, opts.routed);
   return DayScheduleSchema.parse({
     ...day,
     nodes: ordered,

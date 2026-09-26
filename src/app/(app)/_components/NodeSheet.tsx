@@ -19,6 +19,7 @@ interface Place {
 }
 
 interface Props {
+  tripId: string;
   node: ItineraryNode | null; // null = create
   role: "traveller" | "operator";
   defaultStart: string;
@@ -29,7 +30,7 @@ interface Props {
   onDelete: (node: ItineraryNode) => Promise<void>;
 }
 
-export function NodeSheet({ node, role, defaultStart, near, destination, onClose, onSave, onDelete }: Props) {
+export function NodeSheet({ tripId, node, role, defaultStart, near, destination, onClose, onSave, onDelete }: Props) {
   const readOnly = !!node && node.type === "HARD" && role !== "operator";
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Place[] | null>(null);
@@ -138,12 +139,19 @@ export function NodeSheet({ node, role, defaultStart, near, destination, onClose
 
   return (
     <div className="mz-sheet-backdrop" onClick={onClose}>
-      <div className="mz-sheet" role="dialog" aria-modal="true" aria-label={node ? `Edit ${node.title}` : "Add a stop"} onClick={(e) => e.stopPropagation()}>
+      <div className="mz-sheet" data-lenis-prevent role="dialog" aria-modal="true" aria-label={node ? `Edit ${node.title}` : "Add a stop"} onClick={(e) => e.stopPropagation()}>
         <div className="mz-spread">
           <h2 className="mz-display mz-h2">{node ? node.title : "Add a stop"}</h2>
-          <button className="mz-btn mz-btn-ghost mz-btn-sm" onClick={onClose} type="button">
-            Close
-          </button>
+          <span className="mz-row">
+            {node && (
+              <a className="mz-btn mz-btn-sm" href={`/taxi?trip=${tripId}&stop=${node.id}`}>
+                Taxi card
+              </a>
+            )}
+            <button className="mz-btn mz-btn-ghost mz-btn-sm" onClick={onClose} type="button">
+              Close
+            </button>
+          </span>
         </div>
 
         {readOnly ? (

@@ -17,6 +17,7 @@ const STATUS_TEXT: Record<Proposal["status"], string> = {
 
 interface Props {
   proposal: Proposal;
+  role: "traveller" | "operator";
   titles: Map<string, string>;
   previewing: string | null;
   busy: boolean;
@@ -26,7 +27,7 @@ interface Props {
   onUndo: () => void;
 }
 
-export function ProposalCard({ proposal: p, titles, previewing, busy, onPreview, onApply, onDismiss, onUndo }: Props) {
+export function ProposalCard({ proposal: p, role, titles, previewing, busy, onPreview, onApply, onDismiss, onUndo }: Props) {
   const open = p.status === "PENDING";
   const deadline = p.operatorDeadline ? new Date(p.operatorDeadline) : null;
   return (
@@ -35,7 +36,9 @@ export function ProposalCard({ proposal: p, titles, previewing, busy, onPreview,
         <span className="mz-status">
           {STATUS_TEXT[p.status]} · {hhmm(p.createdAt)}
         </span>
-        {p.escalated && <span className="mz-tier t-TRAVELLER">Operator didn&apos;t respond — your call</span>}
+        {p.escalated && (
+          <span className="mz-tier t-TRAVELLER">{role === "operator" ? "Overdue — traveller may now decide" : "Operator didn't respond — your call"}</span>
+        )}
       </div>
       <h3 className="mz-display mz-h3">{p.headline}</h3>
       <p className="mz-small mz-muted" style={{ margin: 0 }}>

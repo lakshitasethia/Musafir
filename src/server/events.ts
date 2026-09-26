@@ -8,7 +8,8 @@ import { EventEmitter } from "node:events";
 export type MusafirEvent =
   | { type: "trip.updated"; tripId: string; version: number }
   | { type: "proposal.changed"; tripId: string; proposalId: string }
-  | { type: "activity"; tripId: string; message: string };
+  | { type: "activity"; tripId: string; message: string }
+  | { type: "room.changed"; tripId: string; roomId: string };
 
 const g = globalThis as typeof globalThis & { __musafirBus?: EventEmitter };
 const bus = (g.__musafirBus ??= (() => {
@@ -19,6 +20,7 @@ const bus = (g.__musafirBus ??= (() => {
 
 /** Every event also goes to the "ops" channel so operator consoles see all trips. */
 export function publish(event: MusafirEvent) {
+  if (event.type === "room.changed") bus.emit(`room:${event.roomId}`, event);
   bus.emit(`trip:${event.tripId}`, event);
   bus.emit("ops", event);
 }

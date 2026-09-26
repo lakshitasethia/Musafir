@@ -1,1 +1,23 @@
-/* Layout-critical rules owned by Aryan (features). Visual styling lives in app.css (Parth). See CLAUDE.md §11. */
+/* Layout-critical rules owned by Aryan (features). Visual styling lives in app.css (Lakshita). See CLAUDE.md §10. */
+
+/* Commute map */
+.mz-map-wrap { position: relative; }
+.mz-map { width: 100%; height: min(70vh, 560px); border-radius: 12px; overflow: hidden; }
+.mz-map-marker { width: 30px; height: 30px; border-radius: 50%; background: #3d2d20; color: #fbf8f3; display: grid; place-items: center; font-size: 0.85rem; border: 2px solid #fbf8f3; box-shadow: 0 1px 4px rgba(0,0,0,0.25); }
+.mz-map-marker.is-hard { box-shadow: 0 0 0 2px #3d2d20, 0 1px 4px rgba(0,0,0,0.25); }
+.mz-view-toggle { display: inline-flex; gap: 6px; }
+.mz-spikes { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.mz-spikes li { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 0.85rem; }
+
+/* Traveller top navigation (layout only; Lakshita styles) */
+.mz-topnav { display: flex; gap: 18px; align-items: center; overflow-x: auto; scrollbar-width: none; }
+.mz-topnav::-webkit-scrollbar { display: none; }
+.mz-topnav-link { font-size: 0.74rem; letter-spacing: 0.14em; text-transform: uppercase; text-decoration: none; white-space: nowrap; padding: 12px 0; }
+.mz-topnav-link[aria-current="page"] { text-decoration: underline; text-underline-offset: 6px; }
+@media (max-width: 720px) {
+  .mz-topbar { flex-wrap: wrap; }
+  .mz-topnav { order: 3; width: 100%; gap: 20px; }
+}
+
+/* Essentials pages */
+.mz-btn.is-disabled { opacity: 0.4; pointer-events: none; }

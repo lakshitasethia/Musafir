@@ -245,6 +245,7 @@ export function JourneyGraph({ day, preview, selectedId, canDrag, onSelect, onSh
                   {n.category.toLowerCase()}
                   {n.isOutdoor ? " · outdoors" : ""}
                   {n.metadata?.plannedBy === "planner" ? " · planned by Musafir" : ""}
+                  {n.metadata?.diet === "unverified" ? " · diet unverified" : n.metadata?.diet === "verified" ? " · fits your diet (OSM tags)" : ""}
                 </span>
               </button>
             );

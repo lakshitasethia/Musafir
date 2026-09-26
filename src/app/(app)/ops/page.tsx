@@ -3,7 +3,7 @@ import { OpsConsole } from "../_components/OpsConsole";
 import { TopBar } from "../_components/TopBar";
 
 export default async function OperatorHome() {
-  const user = await gate("operator");
+  const user = await gate("operator", "/ops");
   return (
     <>
       <TopBar name={user.name} role="operator" home="/ops" />

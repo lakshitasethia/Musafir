@@ -4,7 +4,10 @@
  *    identifying User-Agent, cache results, no per-keystroke autocomplete.
  *  - Overpass for nearby candidate venues, cached by rounded bounding box.
  */
+import { promises as fs } from "node:fs";
+import path from "node:path";
 import { haversineMeters } from "@/lib/musafir/geo.ts";
+import { DATA_DIR } from "./store.ts";
 import type { NodeCategory } from "@/lib/musafir/schemas.ts";
 
 const USER_AGENT = `Musafir/0.1 (hackathon travel demo${process.env.OSM_CONTACT_EMAIL ? `; ${process.env.OSM_CONTACT_EMAIL}` : ""})`;
@@ -13,16 +16,77 @@ const NOMINATIM_MIN_INTERVAL_MS = 1100;
 
 type CacheEntry<T> = { at: number; value: T };
 const g = globalThis as typeof globalThis & {
-  __musafirOsm?: { cache: Map<string, CacheEntry<unknown>>; nominatimChain: Promise<unknown>; lastNominatim: number };
+  __musafirOsm?: { cache: Map<string, CacheEntry<unknown>>; nominatimChain: Promise<unknown>; lastNominatim: number; nominatimCooldownUntil?: number };
 };
-const osm = (g.__musafirOsm ??= { cache: new Map(), nominatimChain: Promise.resolve(), lastNominatim: 0 });
+const osm = (g.__musafirOsm ??= { cache: new Map(), nominatimChain: Promise.resolve(), lastNominatim: 0, nominatimCooldownUntil: 0 });
+/** After a 429, leave Nominatim alone for this long — retrying extends the block. */
+const NOMINATIM_COOLDOWN_MS = 10 * 60_000;
 
+/** A provider told us to slow down (HTTP 429). */
+export class RateLimitError extends Error {
+  constructor(host: string) {
+    super(`OpenStreetMap search (${host}) is rate-limiting us — try again in a few minutes`);
+  }
+}
+
+// ── Disk cache: results survive restarts and outages (place data changes slowly). ──
+const DISK_TTL_MS = 7 * 24 * 60 * 60_000;
+const DISK_FILE = path.join(DATA_DIR, "osm-cache.json");
+const dg = globalThis as typeof globalThis & {
+  __musafirOsmDisk?: { map: Promise<Map<string, CacheEntry<unknown>>> | null; timer: ReturnType<typeof setTimeout> | null };
+};
+const disk = (dg.__musafirOsmDisk ??= { map: null, timer: null });
+function diskMap() {
+  disk.map ??= fs
+    .readFile(DISK_FILE, "utf8")
+    .then((raw) => new Map(Object.entries(JSON.parse(raw) as Record<string, CacheEntry<unknown>>)))
+    .catch(() => new Map<string, CacheEntry<unknown>>());
+  return disk.map;
+}
+function scheduleDiskWrite() {
+  if (disk.timer) return;
+  disk.timer = setTimeout(async () => {
+    disk.timer = null;
+    try {
+      const m = await diskMap();
+      for (const [k, v] of m) if (Date.now() - v.at > DISK_TTL_MS * 2) m.delete(k);
+      await fs.mkdir(DATA_DIR, { recursive: true });
+      const tmp = `${DISK_FILE}.${process.pid}.tmp`;
+      await fs.writeFile(tmp, JSON.stringify(Object.fromEntries(m)), "utf8");
+      await fs.rename(tmp, DISK_FILE);
+    } catch {
+      /* cache is best-effort */
+    }
+  }, 2000);
+}
+const worthKeeping = (v: unknown) => (Array.isArray(v) ? v.length > 0 : v !== null && v !== undefined);
+
+/**
+ * Memory (1 h) → disk (7 days) → network. If the network fails, an older disk
+ * entry is served rather than an error: stale place names beat an empty day.
+ */
 async function cached<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const hit = osm.cache.get(key) as CacheEntry<T> | undefined;
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.value;
-  const value = await fn();
-  osm.cache.set(key, { at: Date.now(), value });
-  return value;
+  const m = await diskMap();
+  const stored = m.get(key) as CacheEntry<T> | undefined;
+  if (stored && Date.now() - stored.at < DISK_TTL_MS) {
+    osm.cache.set(key, stored);
+    return stored.value;
+  }
+  try {
+    const value = await fn();
+    if (worthKeeping(value)) {
+      const entry = { at: Date.now(), value };
+      osm.cache.set(key, entry);
+      m.set(key, entry);
+      scheduleDiskWrite();
+    }
+    return value;
+  } catch (e) {
+    if (stored) return stored.value;
+    throw e;
+  }
 }
 
 async function fetchJson(url: string, init: RequestInit, timeoutMs: number): Promise<unknown> {
@@ -30,6 +94,7 @@ async function fetchJson(url: string, init: RequestInit, timeoutMs: number): Pro
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, { ...init, signal: controller.signal, headers: { "User-Agent": USER_AGENT, ...init.headers } });
+    if (res.status === 429) throw new RateLimitError(new URL(url).host);
     if (!res.ok) throw new Error(`HTTP ${res.status} from ${new URL(url).host}`);
     return await res.json();
   } finally {
@@ -73,14 +138,21 @@ interface NominatimItem {
   type: string;
   address?: Record<string, string>;
   namedetails?: Record<string, string>;
+  extratags?: Record<string, string>;
 }
 
 function throttledNominatim<T>(fn: () => Promise<T>): Promise<T> {
   const run = osm.nominatimChain.catch(() => undefined).then(async () => {
+    if (Date.now() < (osm.nominatimCooldownUntil ?? 0)) throw new RateLimitError("nominatim.openstreetmap.org");
     const wait = osm.lastNominatim + NOMINATIM_MIN_INTERVAL_MS - Date.now();
     if (wait > 0) await new Promise((r) => setTimeout(r, wait));
     osm.lastNominatim = Date.now();
-    return fn();
+    try {
+      return await fn();
+    } catch (e) {
+      if (e instanceof RateLimitError) osm.nominatimCooldownUntil = Date.now() + NOMINATIM_COOLDOWN_MS;
+      throw e;
+    }
   });
   osm.nominatimChain = run;
   return run;
@@ -97,6 +169,8 @@ export async function searchPlaces(query: string, near?: { lat: number; lng: num
   if (process.env.OSM_CONTACT_EMAIL) params.set("email", process.env.OSM_CONTACT_EMAIL);
   const key = `nominatim:${params}`;
   return cached(key, () =>
+    withFallback(
+      () =>
     throttledNominatim(async () => {
       const items = (await fetchJson(`https://nominatim.openstreetmap.org/search?${params}`, {}, 8000)) as NominatimItem[];
       return items.map((it) => {
@@ -117,6 +191,8 @@ export async function searchPlaces(query: string, near?: { lat: number; lng: num
         };
       });
     }),
+      () => photonSearch(q, near),
+    ),
   );
 }
 
@@ -151,7 +227,18 @@ export interface VenueCandidate {
   cuisine?: string;
   kind: string;
   /** Which open-data service produced this candidate. */
-  source: "overpass" | "nominatim";
+  source: "overpass" | "nominatim" | "photon";
+  /** OSM `diet:*` tags, verbatim (e.g. { "diet:vegetarian": "yes" }). */
+  diet?: Record<string, string>;
+  /** OSM `stars` tag for accommodation, verbatim; absent when not mapped. */
+  stars?: string;
+  website?: string;
+}
+
+function dietTags(tags: Record<string, string> | undefined): Record<string, string> | undefined {
+  if (!tags) return undefined;
+  const out = Object.fromEntries(Object.entries(tags).filter(([k]) => k.startsWith("diet:")));
+  return Object.keys(out).length ? out : undefined;
 }
 
 interface OverpassElement {
@@ -178,7 +265,7 @@ const NOMINATIM_KEYWORDS: Record<CandidatePurpose, string[]> = {
   DINING: ["restaurant", "cafe"],
   NATURE: ["park", "garden"],
   LEISURE: ["park", "cinema"],
-  ACCOMMODATION: ["hotel"],
+  ACCOMMODATION: ["hotel", "guest house", "hostel"],
   TRANSIT: [],
 };
 
@@ -221,6 +308,9 @@ async function overpassCandidates(center: { lat: number; lng: number }, purpose:
           cuisine: tags.cuisine,
           kind: `${cls}=${tags[cls] ?? "?"}`,
           source: "overpass",
+          diet: dietTags(tags),
+          stars: tags.stars,
+          website: tags.website ?? tags["contact:website"],
         });
       }
       return out;
@@ -239,7 +329,7 @@ async function nominatimCandidates(center: { lat: number; lng: number }, purpose
   const out: VenueCandidate[] = [];
   const seen = new Set<string>();
   for (const keyword of NOMINATIM_KEYWORDS[purpose]) {
-    const params = new URLSearchParams({ q: keyword, format: "jsonv2", limit: "10", bounded: "1", viewbox, namedetails: "1", "accept-language": "en" });
+    const params = new URLSearchParams({ q: keyword, format: "jsonv2", limit: "10", bounded: "1", viewbox, namedetails: "1", extratags: "1", "accept-language": "en" });
     if (process.env.OSM_CONTACT_EMAIL) params.set("email", process.env.OSM_CONTACT_EMAIL);
     const items = await throttledNominatim(
       () => fetchJson(`https://nominatim.openstreetmap.org/search?${params}`, {}, 8000) as Promise<NominatimItem[]>,
@@ -263,6 +353,9 @@ async function nominatimCandidates(center: { lat: number; lng: number }, purpose
         isOutdoor: purpose === "INDOOR" ? false : isOutdoor,
         kind: `${cls}=${it.type}`,
         source: "nominatim",
+        diet: dietTags(it.extratags),
+        stars: it.extratags?.stars,
+        website: it.extratags?.website ?? it.extratags?.["contact:website"],
       });
     }
   }
@@ -291,9 +384,136 @@ export async function nearbyCandidates(
       try {
         list = await nominatimCandidates(center, purpose, r);
       } catch (nominatimError) {
-        throw new Error(`${(overpassError as Error).message}; Nominatim fallback failed: ${(nominatimError as Error).message}`);
+        try {
+          list = await photonCandidates(center, purpose, r);
+        } catch (photonError) {
+          const limited = [nominatimError, photonError].find((e) => e instanceof RateLimitError);
+          if (limited) throw limited;
+          throw new Error(
+            `no map data source reachable (${(overpassError as Error).message}; ${(nominatimError as Error).message}; Photon: ${(photonError as Error).message})`,
+          );
+        }
       }
     }
     return list.sort((a, b) => a.distanceMeters - b.distanceMeters);
   });
+}
+
+/**
+ * Address in the place's local script (no accept-language → OSM default names),
+ * for the Taxi Rescue card. Throttled and cached like search.
+ */
+export async function reverseLocal(lat: number, lng: number): Promise<{ localAddress: string; localName?: string } | null> {
+  const params = new URLSearchParams({ lat: lat.toFixed(6), lon: lng.toFixed(6), format: "jsonv2", zoom: "18", namedetails: "1" });
+  if (process.env.OSM_CONTACT_EMAIL) params.set("email", process.env.OSM_CONTACT_EMAIL);
+  return cached(`reverse:${params}`, () =>
+    withFallback(
+      () =>
+        throttledNominatim(async () => {
+          const r = (await fetchJson(`https://nominatim.openstreetmap.org/reverse?${params}`, {}, 8000)) as { display_name?: string; namedetails?: Record<string, string> };
+          return r.display_name ? { localAddress: r.display_name, localName: r.namedetails?.name } : null;
+        }),
+      () => photonReverse(lat, lng),
+    ),
+  );
+}
+
+// ── Photon (photon.komoot.io): free, keyless OSM search — third source when the others fail. ──
+const PHOTON = "https://photon.komoot.io";
+interface PhotonFeature {
+  geometry: { coordinates: [number, number] };
+  properties: Record<string, string | number | undefined> & { name?: string; osm_key?: string; osm_value?: string; osm_type?: string; osm_id?: number };
+}
+
+async function withFallback<T>(primary: () => Promise<T>, fallback: () => Promise<T>): Promise<T> {
+  try {
+    return await primary();
+  } catch (primaryError) {
+    try {
+      return await fallback();
+    } catch {
+      throw primaryError;
+    }
+  }
+}
+
+const photonCity = (p: PhotonFeature["properties"]) => String(p.city ?? p.county ?? p.state ?? "");
+
+async function photonSearch(q: string, near?: { lat: number; lng: number }): Promise<PlaceResult[]> {
+  const params = new URLSearchParams({ q, limit: "6", lang: "en" });
+  if (near) {
+    params.set("lat", String(near.lat));
+    params.set("lon", String(near.lng));
+  }
+  const body = (await fetchJson(`${PHOTON}/api/?${params}`, {}, 8000)) as { features?: PhotonFeature[] };
+  return (body.features ?? [])
+    .filter((f) => f.properties.name)
+    .map((f) => {
+      const p = f.properties;
+      const { category, isOutdoor } = categoryFromOsm(String(p.osm_key ?? ""), String(p.osm_value ?? ""));
+      const [lng, lat] = f.geometry.coordinates;
+      return {
+        displayName: [p.name, p.street, p.district, photonCity(p), p.country].filter(Boolean).join(", "),
+        name: String(p.name),
+        lat,
+        lng,
+        city: photonCity(p),
+        neighborhood: p.district ? String(p.district) : undefined,
+        category,
+        isOutdoor,
+      };
+    });
+}
+
+const PHOTON_TAGS: Record<CandidatePurpose, string[]> = {
+  INDOOR: ["tourism:museum", "amenity:cafe", "amenity:library"],
+  CULTURE: ["tourism:museum", "tourism:attraction", "historic"],
+  DINING: ["amenity:restaurant", "amenity:cafe"],
+  NATURE: ["leisure:park", "leisure:garden"],
+  LEISURE: ["leisure:park", "amenity:cinema"],
+  ACCOMMODATION: ["tourism:hotel", "tourism:guest_house", "tourism:hostel"],
+  TRANSIT: [],
+};
+
+async function photonCandidates(center: { lat: number; lng: number }, purpose: CandidatePurpose, r: number): Promise<VenueCandidate[]> {
+  const dLat = r / 111_320;
+  const dLng = r / (111_320 * Math.max(0.01, Math.cos((center.lat * Math.PI) / 180)));
+  const bbox = `${center.lng - dLng},${center.lat - dLat},${center.lng + dLng},${center.lat + dLat}`;
+  const out: VenueCandidate[] = [];
+  const seen = new Set<string>();
+  for (const tag of PHOTON_TAGS[purpose]) {
+    const word = (tag.split(":")[1] ?? tag).replace("_", " ");
+    const params = new URLSearchParams({ q: word, lat: String(center.lat), lon: String(center.lng), bbox, osm_tag: tag, limit: "15", lang: "en" });
+    const body = (await fetchJson(`${PHOTON}/api/?${params}`, {}, 8000)) as { features?: PhotonFeature[] };
+    for (const f of body.features ?? []) {
+      const p = f.properties;
+      const [lng, lat] = f.geometry.coordinates;
+      const name = p.name ? String(p.name) : "";
+      const distanceMeters = Math.round(haversineMeters(center, { lat, lng }));
+      if (!name || seen.has(name) || distanceMeters > r) continue;
+      seen.add(name);
+      const cls = String(p.osm_key ?? "");
+      const { category, isOutdoor } = categoryFromOsm(cls, String(p.osm_value ?? ""));
+      out.push({
+        osmId: `${p.osm_type ?? "n"}/${p.osm_id ?? name}`,
+        name,
+        lat,
+        lng,
+        distanceMeters,
+        category: purpose === "INDOOR" ? category : purpose,
+        isOutdoor: purpose === "INDOOR" ? false : isOutdoor,
+        kind: `${cls}=${p.osm_value ?? "?"}`,
+        source: "photon",
+      });
+    }
+  }
+  return out;
+}
+
+async function photonReverse(lat: number, lng: number): Promise<{ localAddress: string; localName?: string } | null> {
+  const body = (await fetchJson(`${PHOTON}/reverse?lat=${lat}&lon=${lng}`, {}, 8000)) as { features?: PhotonFeature[] };
+  const p = body.features?.[0]?.properties;
+  if (!p) return null;
+  const localAddress = [p.name, p.housenumber, p.street, p.district, photonCity(p), p.country].filter(Boolean).join(", ");
+  return localAddress ? { localAddress, localName: p.name ? String(p.name) : undefined } : null;
 }

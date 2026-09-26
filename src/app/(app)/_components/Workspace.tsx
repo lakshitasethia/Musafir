@@ -1,7 +1,9 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { commuteBand } from "@/lib/musafir/geo.ts";
 import { applyPatches } from "@/lib/musafir/reducer.ts";
 import { newId } from "@/lib/musafir/ids.ts";
 import type { AutonomyPolicy } from "@/lib/musafir/risk.ts";
@@ -10,12 +12,22 @@ import { fromMinutes, MINUTES_PER_DAY, toMinutes } from "@/lib/musafir/time.ts";
 import type { TripBundle } from "@/server/trips.ts";
 import { ApiError, api, hhmm } from "./api";
 import { JourneyGraph } from "./JourneyGraph";
+import { ActionRibbon } from "../_ui/ActionRibbon";
 import { NodeSheet } from "./NodeSheet";
+import { OfflineRegistrar } from "./OfflineRegistrar";
 import { ProposalCard } from "./ProposalCard";
 import { Toast } from "./TopBar";
 import { useLive } from "./useLive";
 
 type Role = "traveller" | "operator";
+
+const SENTINEL_POLL_MS = 10 * 60_000;
+
+// WebGL map: client-only and loaded on demand, so the journey view stays light.
+const CommuteMap = dynamic(() => import("./CommuteMap").then((m) => m.CommuteMap), {
+  ssr: false,
+  loading: () => <div className="mz-empty">Loading map…</div>,
+});
 
 const VIBE_FADERS: { key: keyof VibeConfig; left: string; right: string; label: string }[] = [
   { key: "pacing", label: "Pacing", left: "Café loiterer", right: "25k-step marathon" },
@@ -30,13 +42,18 @@ function initialDay(trip: TripBundle["trip"]): number {
 }
 
 export function Workspace({ tripId, role, backHref }: { tripId: string; role: Role; backHref: string }) {
-  const { data, error, live, refresh } = useLive<TripBundle>(`/api/trips/${tripId}`, `/api/trips/${tripId}/events`);
+  const { data, error, live, refresh, offlineSince } = useLive<TripBundle>(`/api/trips/${tripId}`, `/api/trips/${tripId}/events`, tripId);
   const [dayIndex, setDayIndex] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sheet, setSheet] = useState<{ node: ItineraryNode | null } | null>(null);
   const [preview, setPreview] = useState<{ proposalId: string; optionId: string } | null>(null);
   const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
+  // Tier-1 edits render instantly; the server result replaces them (or they roll back).
+  const [optimistic, setOptimistic] = useState<{ version: number; day: DaySchedule } | null>(null);
+  const [ribbonOpen, setRibbonOpen] = useState(false);
+  const [view, setView] = useState<"journey" | "map">("journey");
+  const [quick, setQuick] = useState<{ patches: TripPatch[]; summary: string; via: string } | null>(null);
 
   const flash = (text: string, isError = false) => {
     setToast({ text, error: isError });
@@ -44,9 +61,41 @@ export function Workspace({ tripId, role, backHref }: { tripId: string; role: Ro
   };
 
   const activeDayIndex = dayIndex ?? (data ? initialDay(data.trip) : 1);
-  const day = data?.trip.schedule.find((d) => d.dayIndex === activeDayIndex) ?? null;
+  const serverDay = data?.trip.schedule.find((d) => d.dayIndex === activeDayIndex) ?? null;
+  const day =
+    optimistic && data && optimistic.version === data.trip.version && optimistic.day.dayIndex === activeDayIndex ? optimistic.day : serverDay;
+
+  // Ambient sentinel: check the next two hours on open and every 10 min while the trip is open.
+  // The server rate-limits per trip; any card it raises arrives over SSE.
+  useEffect(() => {
+    const ping = () => api("/api/sentinel", { body: { tripId } }).catch(() => undefined);
+    ping();
+    const timer = setInterval(ping, SENTINEL_POLL_MS);
+    return () => clearInterval(timer);
+  }, [tripId]);
+
+  // Operator deadlines pass on the clock, not on an event: refetch right after the earliest one.
+  useEffect(() => {
+    if (!data) return;
+    const now = Date.now();
+    const next = data.proposals
+      .filter((p) => p.status === "PENDING" && p.operatorDeadline && !p.escalated)
+      .map((p) => Date.parse(p.operatorDeadline!))
+      .filter((t) => t > now)
+      .sort((a, b) => a - b)[0];
+    if (!next) return;
+    const timer = setTimeout(refresh, Math.min(next - now + 1000, 2 ** 31 - 1));
+    return () => clearTimeout(timer);
+  }, [data, refresh]);
 
   const previewDay = useMemo(() => {
+    if (quick && day) {
+      try {
+        return applyPatches(day, quick.patches);
+      } catch {
+        return null;
+      }
+    }
     if (!preview || !data || !day) return null;
     const option = data.proposals.find((p) => p.id === preview.proposalId)?.options.find((o) => o.id === preview.optionId);
     if (!option) return null;
@@ -55,7 +104,7 @@ export function Workspace({ tripId, role, backHref }: { tripId: string; role: Ro
     } catch {
       return null;
     }
-  }, [preview, data, day]);
+  }, [preview, data, day, quick]);
 
   const titles = useMemo(() => {
     const m = new Map<string, string>();
@@ -78,15 +127,58 @@ export function Workspace({ tripId, role, backHref }: { tripId: string; role: Ro
     }
   }
 
-  const sendPatches = (patches: TripPatch[], ok: string) =>
-    run(() => api(`/api/trips/${tripId}/days/${activeDayIndex}/patches`, { body: { baseVersion: data!.trip.version, patches } }), ok);
+  const sendPatches = async (patches: TripPatch[], ok: string) => {
+    if (!data || !serverDay) return;
+    try {
+      setOptimistic({ version: data.trip.version, day: applyPatches(serverDay, patches) });
+    } catch (e) {
+      flash((e as Error).message, true); // invalid locally → never sent
+      throw e;
+    }
+    try {
+      await run(() => api(`/api/trips/${tripId}/days/${activeDayIndex}/patches`, { body: { baseVersion: data.trip.version, patches } }), ok);
+    } finally {
+      setOptimistic(null);
+    }
+  };
 
   const patch = (p: Omit<TripPatch, "patchId" | "targetDayIndex">): TripPatch => ({ patchId: newId(), targetDayIndex: activeDayIndex, ...p });
+
+  function renderCard(p: TripBundle["proposals"][number]) {
+    return (
+      <ProposalCard
+        key={p.id}
+        proposal={p}
+        role={role}
+        titles={titles}
+        busy={busy}
+        previewing={preview?.proposalId === p.id ? preview.optionId : null}
+        onPreview={(optionId) => {
+          if (optionId && p.dayIndex !== activeDayIndex) setDayIndex(p.dayIndex);
+          setPreview(optionId ? { proposalId: p.id, optionId } : null);
+        }}
+        onApply={(optionId) => {
+          setPreview(null);
+          run(() => api(`/api/proposals/${p.id}/decision`, { body: { decision: "APPLY", optionId } }), "Applied").catch(() => undefined);
+        }}
+        onDismiss={() => run(() => api(`/api/proposals/${p.id}/decision`, { body: { decision: "DISMISS" } }), "Dismissed").catch(() => undefined)}
+        onUndo={() => run(() => api(`/api/proposals/${p.id}/undo`, { body: {} }), "Undone").catch(() => undefined)}
+      />
+    );
+  }
+
+  function requestCluster(nodeId: string) {
+    run(() => api(`/api/trips/${tripId}/days/${activeDayIndex}/cluster`, { body: { nodeId } }), "Looking for a closer option…").catch(() => undefined);
+  }
 
   if (error && !data) return <p className="mz-error" style={{ padding: 24 }}>{error}</p>;
   if (!data || !day) return <p className="mz-muted" style={{ padding: 24 }}>Loading trip…</p>;
 
   const pending = data.proposals.filter((p) => p.status === "PENDING");
+  const spikes = day.nodes.slice(1).flatMap((to, i) => {
+    const seg = day.transitSegments.find((s) => s.fromNodeId === day.nodes[i].id && s.toNodeId === to.id);
+    return seg && to.type === "SOFT" && commuteBand(seg.durationMinutes) === "SPIKE" ? [{ to, minutes: seg.durationMinutes }] : [];
+  });
   const history = data.proposals.filter((p) => p.status !== "PENDING");
   const dayCost = day.nodes.reduce((s, n) => s + n.costEstimate.amount, 0);
   const currencies = [...new Set(day.nodes.map((n) => n.costEstimate.currency))];
@@ -98,6 +190,12 @@ export function Workspace({ tripId, role, backHref }: { tripId: string; role: Ro
 
   return (
     <>
+      <OfflineRegistrar />
+      {offlineSince && (
+        <p className="mz-note" role="status" style={{ marginTop: 16 }}>
+          Offline — showing the copy saved on this device at {new Date(offlineSince).toLocaleString()}. Changes need a connection.
+        </p>
+      )}
       <div className="mz-page-head">
         <Link href={backHref} className="mz-label" style={{ textDecoration: "none" }}>
           ← All trips
@@ -168,10 +266,62 @@ export function Workspace({ tripId, role, backHref }: { tripId: string; role: Ro
                 </span>
               </div>
             )}
+            {(data.findings[activeDayIndex] ?? []).length > 0 && (
+              <ul className="mz-spikes" aria-label="Checks for this day">
+                {data.findings[activeDayIndex].map((f, i) => (
+                  <li key={i} style={{ color: f.severity === "block" ? "var(--mz-red)" : f.severity === "warn" ? "var(--mz-amber)" : undefined }}>
+                    <span>
+                      {f.message} <span className="mz-tiny mz-muted">({f.auditor})</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
             {day.nodes.length === 0 && data.planner?.status !== "RUNNING" && (
               <div className="mz-empty">This day is empty. Let the planner draft it from real places, or add a stop yourself.</div>
             )}
-            <JourneyGraph
+            {role === "operator" && day.nodes.length > 0 && (
+              <QuickEdit
+                key={`${activeDayIndex}-${data.trip.version}`}
+                busy={busy}
+                pending={quick}
+                onInterpret={async (text) => {
+                  const r = await api<{ patches: TripPatch[]; summary: string; via: string }>(`/api/trips/${tripId}/days/${activeDayIndex}/microedit`, { body: { text } });
+                  setPreview(null);
+                  setQuick(r);
+                }}
+                onApply={() => {
+                  if (!quick) return;
+                  const patches = quick.patches;
+                  setQuick(null);
+                  sendPatches(patches, "Quick edit applied").catch(() => undefined);
+                }}
+                onCancel={() => setQuick(null)}
+              />
+            )}
+            <div className="mz-view-toggle" role="group" aria-label="View" style={{ marginBottom: 16 }}>
+              {(["journey", "map"] as const).map((v) => (
+                <button key={v} className="mz-chip" aria-pressed={view === v} onClick={() => setView(v)}>
+                  {v === "journey" ? "Journey" : "Map"}
+                </button>
+              ))}
+            </div>
+            {view === "map" && day.nodes.length > 0 && <CommuteMap day={day} onCluster={requestCluster} />}
+            {spikes.length > 0 && (
+              <ul className="mz-spikes" aria-label="Long rides">
+                {spikes.map(({ to, minutes }) => (
+                  <li key={to.id}>
+                    <span style={{ color: "var(--mz-red)" }}>
+                      {minutes} min to {to.title}
+                    </span>
+                    <button className="mz-btn mz-btn-ghost mz-btn-sm" disabled={busy} onClick={() => requestCluster(to.id)}>
+                      Find closer
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {view === "journey" && <JourneyGraph
               day={day}
               preview={previewDay}
               selectedId={selectedId}
@@ -186,7 +336,7 @@ export function Workspace({ tripId, role, backHref }: { tripId: string; role: Ro
                   `Moved ${n.title}`,
                 ).catch(() => undefined)
               }
-            />
+            />}
           </div>
 
           <Simulator
@@ -207,6 +357,8 @@ export function Workspace({ tripId, role, backHref }: { tripId: string; role: Ro
             }
           />
 
+          {role === "traveller" && day.nodes.length > 0 && <GroupVotePanel tripId={tripId} dayIndex={activeDayIndex} version={data.trip.version} />}
+
           {role === "traveller" ? (
             <VibePanel key={JSON.stringify(data.trip.vibeConfig)} vibe={data.trip.vibeConfig} busy={busy} onSave={(v) => run(() => api(`/api/trips/${tripId}/settings`, { method: "PATCH", body: { vibeConfig: v } }), "Preferences saved").catch(() => undefined)} />
           ) : (
@@ -214,31 +366,13 @@ export function Workspace({ tripId, role, backHref }: { tripId: string; role: Ro
           )}
         </section>
 
-        <aside className="mz-side mz-stack" aria-label="Proposals and activity">
+        <aside className="mz-side mz-stack" aria-label="Proposals and activity" data-lenis-prevent>
           <div className="mz-panel-title">
             <h2 className="mz-display mz-h2">Action cards</h2>
             <span className="mz-label">{pending.length} open</span>
           </div>
           {pending.length === 0 && <p className="mz-small mz-muted">Nothing needs you. Simulate a disruption to see the engine heal the day.</p>}
-          {[...pending, ...history.slice(0, 8)].map((p) => (
-            <ProposalCard
-              key={p.id}
-              proposal={p}
-              titles={titles}
-              busy={busy}
-              previewing={preview?.proposalId === p.id ? preview.optionId : null}
-              onPreview={(optionId) => {
-                if (optionId && p.dayIndex !== activeDayIndex) setDayIndex(p.dayIndex);
-                setPreview(optionId ? { proposalId: p.id, optionId } : null);
-              }}
-              onApply={(optionId) => {
-                setPreview(null);
-                run(() => api(`/api/proposals/${p.id}/decision`, { body: { decision: "APPLY", optionId } }), "Applied").catch(() => undefined);
-              }}
-              onDismiss={() => run(() => api(`/api/proposals/${p.id}/decision`, { body: { decision: "DISMISS" } }), "Dismissed").catch(() => undefined)}
-              onUndo={() => run(() => api(`/api/proposals/${p.id}/undo`, { body: {} }), "Undone").catch(() => undefined)}
-            />
-          ))}
+          {[...pending, ...history.slice(0, 8)].map(renderCard)}
 
           <div className="mz-panel">
             <div className="mz-panel-title">
@@ -260,6 +394,7 @@ export function Workspace({ tripId, role, backHref }: { tripId: string; role: Ro
 
       {sheet && (
         <NodeSheet
+          tripId={tripId}
           node={sheet.node}
           role={role}
           defaultStart={defaultStart}
@@ -282,6 +417,14 @@ export function Workspace({ tripId, role, backHref }: { tripId: string; role: Ro
           onDelete={(n) => sendPatches([patch({ operation: "REMOVE", nodeId: n.id, reason: `Removed "${n.title}"` })], `Removed ${n.title}`)}
         />
       )}
+      <ActionRibbon
+        count={pending.length}
+        open={ribbonOpen}
+        onToggle={() => setRibbonOpen((o) => !o)}
+        title={pending.some((p) => p.canDecide.some(Boolean)) ? undefined : pending.length === 1 ? "1 with your operator" : `${pending.length} with your operator`}
+      >
+        {pending.map(renderCard)}
+      </ActionRibbon>
       <Toast toast={toast} />
     </>
   );
@@ -313,7 +456,7 @@ function Simulator({
   const rainValid = /^\d\d:\d\d$/.test(rainFrom) && /^\d\d:\d\d$/.test(rainTo) && toMinutes(rainTo) > toMinutes(rainFrom);
 
   return (
-    <div className="mz-panel mz-stack">
+    <div className="mz-panel mz-stack mz-simulator">
       <div className="mz-panel-title">
         <span className="mz-label">Disruption simulator</span>
         <button className="mz-btn mz-btn-ghost mz-btn-sm" disabled={busy || day.nodes.length === 0} onClick={onWeather} title="Checks the real Open-Meteo forecast for this day">
@@ -438,6 +581,170 @@ function AutonomyPanel({ policy, busy, onSave }: { policy: AutonomyPolicy; busy:
         <input type="checkbox" checked={p.fallbackToTraveller} onChange={(e) => setP({ ...p, fallbackToTraveller: e.target.checked })} />
         <span>If I don&apos;t reply in time, let the traveller decide safe items</span>
       </label>
+    </div>
+  );
+}
+
+function QuickEdit({
+  busy,
+  pending,
+  onInterpret,
+  onApply,
+  onCancel,
+}: {
+  busy: boolean;
+  pending: { summary: string; via: string } | null;
+  onInterpret: (text: string) => Promise<void>;
+  onApply: () => void;
+  onCancel: () => void;
+}) {
+  const [text, setText] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [working, setWorking] = useState(false);
+  return (
+    <div className="mz-stack" style={{ marginBottom: 16 }}>
+      <form
+        className="mz-row"
+        style={{ flexWrap: "nowrap" }}
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setWorking(true);
+          setError(null);
+          try {
+            await onInterpret(text);
+          } catch (err) {
+            setError((err as Error).message);
+          } finally {
+            setWorking(false);
+          }
+        }}
+      >
+        <input
+          className="mz-input"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Quick edit — e.g. push dinner 30 min, skip stop 3"
+          aria-label="Operator quick edit"
+          maxLength={200}
+        />
+        <button className="mz-btn mz-btn-sm" disabled={busy || working || !text.trim()}>
+          {working ? "…" : "Preview"}
+        </button>
+      </form>
+      {error && <p className="mz-error" style={{ margin: 0 }}>{error}</p>}
+      {pending && (
+        <div className="mz-note mz-spread">
+          <span>
+            {pending.summary} <span className="mz-tiny">({pending.via === "grammar" ? "understood exactly" : `interpreted by ${pending.via}`})</span>
+          </span>
+          <span className="mz-row">
+            <button className="mz-btn mz-btn-ghost mz-btn-sm" onClick={onCancel}>
+              Cancel
+            </button>
+            <button className="mz-btn mz-btn-solid mz-btn-sm" disabled={busy} onClick={onApply}>
+              Apply
+            </button>
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface RoomSummary {
+  token: string;
+  start: string;
+  dayIndex: number;
+  status: string;
+  winner?: string;
+}
+
+/** Owner opens a Group Vibe Check for a meal slot and shares the link. */
+function GroupVotePanel({ tripId, dayIndex, version }: { tripId: string; dayIndex: number; version: number }) {
+  const [start, setStart] = useState("19:30");
+  const [rooms, setRooms] = useState<RoomSummary[]>([]);
+  const [working, setWorking] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api<{ rooms: RoomSummary[] }>(`/api/trips/${tripId}/rooms`)
+      .then((r) => !cancelled && setRooms(r.rooms))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [tripId, version]);
+
+  const link = (token: string) => `${window.location.origin}/room/${token}`;
+  async function share(token: string) {
+    const url = link(token);
+    try {
+      if (navigator.share) await navigator.share({ title: "Where do we eat?", url });
+      else {
+        await navigator.clipboard.writeText(url);
+        setMsg("Link copied");
+      }
+    } catch {
+      /* cancelled */
+    }
+  }
+
+  return (
+    <div className="mz-panel mz-stack">
+      <span className="mz-label">Group vote for a meal</span>
+      <p className="mz-tiny mz-muted" style={{ margin: 0 }}>
+        Musafir picks 3 real places near where you&apos;ll be. Share the link; when everyone says yes, it&apos;s added to the day.
+      </p>
+      <form
+        className="mz-row"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setWorking(true);
+          setMsg(null);
+          try {
+            const r = await api<{ token: string; participantId: string; key: string }>(`/api/trips/${tripId}/days/${dayIndex}/rooms`, { body: { start, durationMinutes: 75 } });
+            try {
+              localStorage.setItem(`mz-room-${r.token}`, JSON.stringify({ participantId: r.participantId, key: r.key }));
+            } catch {
+              /* private mode */
+            }
+            setRooms((rs) => [{ token: r.token, start, dayIndex, status: "OPEN" }, ...rs]);
+            await share(r.token);
+          } catch (err) {
+            setMsg((err as Error).message);
+          } finally {
+            setWorking(false);
+          }
+        }}
+      >
+        <input className="mz-input" style={{ maxWidth: 140 }} type="time" step={900} value={start} onChange={(e) => setStart(e.target.value)} aria-label="Meal time" required />
+        <button className="mz-btn mz-btn-sm" disabled={working}>
+          {working ? "Finding places…" : "Open group vote"}
+        </button>
+      </form>
+      {msg && <p className="mz-small" style={{ margin: 0 }}>{msg}</p>}
+      {rooms.length > 0 && (
+        <ul className="mz-spikes">
+          {rooms.map((r) => (
+            <li key={r.token}>
+              <span>
+                Day {r.dayIndex} · {r.start} · {r.winner ? `chose ${r.winner}` : r.status.toLowerCase()}
+              </span>
+              <span className="mz-row">
+                <a className="mz-btn mz-btn-ghost mz-btn-sm" href={`/room/${r.token}`}>
+                  Open
+                </a>
+                {r.status === "OPEN" && (
+                  <button className="mz-btn mz-btn-ghost mz-btn-sm" onClick={() => share(r.token)}>
+                    Share
+                  </button>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

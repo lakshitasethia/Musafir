@@ -14,6 +14,8 @@ import { fromMinutes, MINUTES_PER_DAY } from "@/lib/musafir/time.ts";
 import { HttpError, type SessionUser } from "./auth.ts";
 import { publish } from "./events.ts";
 import { PLANNER_STALE_MS } from "./planner.ts";
+import { routedLookup, warmLegs } from "./routing.ts";
+import { auditTrip } from "./auditors.ts";
 import { read, write, type Db, type ProposalOption, type ProposalRecord, type TripRecord } from "./store.ts";
 
 const MAX_TRIP_DAYS = 30;
@@ -91,7 +93,9 @@ function log(db: Db, tripId: string, actor: string, message: string) {
   db.activity.push({ id: newId(), tripId, at: new Date().toISOString(), actor, message });
 }
 
-const actorOf = (u: SessionUser) => `${u.name} (${u.role})`;
+/** Background actor for ambient checks: can see every trip, still bound by risk tiers. */
+export const SENTINEL_ACTOR: SessionUser = { id: "system:sentinel", email: "", name: "Sentinel", role: "operator", guest: false };
+const actorOf = (u: SessionUser) => (u.id.startsWith("system:") ? u.name.toLowerCase() : `${u.name} (${u.role})`);
 
 export function isEscalated(p: ProposalRecord, now = Date.now()) {
   return p.status === "PENDING" && !!p.operatorDeadline && Date.parse(p.operatorDeadline) < now;
@@ -102,6 +106,15 @@ function toHttp(e: unknown): never {
   if (e instanceof ScheduleError) throw new HttpError(422, e.message);
   if (e instanceof z.ZodError) throw new HttpError(422, e.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "));
   throw e;
+}
+
+/**
+ * Best-effort: fetch routed travel times for a day's stops (plus any new ones)
+ * before a write, so the synchronous engine can use them. Never throws.
+ */
+async function warmDay(tripId: string, dayIndex: number, extra: { lat: number; lng: number }[] = []) {
+  const points = await read((db) => db.trips.find((t) => t.trip.id === tripId)?.trip.schedule.find((d) => d.dayIndex === dayIndex)?.nodes.map((n) => n.location) ?? []);
+  await warmLegs([...points, ...extra]).catch(() => undefined);
 }
 
 // ── queries ──────────────────────────────────────────────────────────
@@ -130,6 +143,7 @@ export async function getTripBundle(user: SessionUser, tripId: string) {
       trip: rec.trip,
       autonomy: rec.autonomy,
       planner: rec.planner ?? null,
+      findings: auditTrip(rec.trip),
       owner: db.users.find((u) => u.id === rec.ownerId)?.name ?? "unknown",
       proposals: db.proposals
         .filter((p) => p.tripId === tripId)
@@ -231,6 +245,7 @@ export async function updateTripSettings(user: SessionUser, tripId: string, inpu
 
 /** Tier 1: direct edits from the graph UI. Travellers can't touch locked (HARD) bookings. */
 export async function applyDirectPatches(user: SessionUser, tripId: string, dayIndex: number, input: z.infer<typeof DirectPatchSchema>) {
+  await warmDay(tripId, dayIndex, input.patches.flatMap((p) => (p.payload ? [p.payload.location] : [])));
   const version = await write((db) => {
     const rec = findTrip(db, user, tripId);
     if (user.role === "traveller" && rec.ownerId !== user.id) throw new HttpError(403, "Not your trip");
@@ -245,7 +260,7 @@ export async function applyDirectPatches(user: SessionUser, tripId: string, dayI
       }
     }
     try {
-      setDay(rec, applyPatches(day, input.patches));
+      setDay(rec, applyPatches(day, input.patches, { routed: routedLookup }));
     } catch (e) {
       toHttp(e);
     }
@@ -275,7 +290,7 @@ function urgencyFor(tier: RiskTier): ProposalRecord["urgency"] {
 }
 
 export function buildEngineOption(rec: TripRecord, day: DaySchedule, disruption: Disruption): { option: ProposalOption; affected: string[] } {
-  const result = heal(day, disruption, { policy: policyFromVibe(rec.trip.vibeConfig) });
+  const result = heal(day, disruption, { policy: policyFromVibe(rec.trip.vibeConfig), routed: routedLookup });
   const risk = classifyRisk(day, result.patches, result.conflicts, rec.autonomy);
   const n = result.patches.length;
   const label =
@@ -292,6 +307,7 @@ export function buildEngineOption(rec: TripRecord, day: DaySchedule, disruption:
 
 /** Creates a proposal from a disruption; auto-applies when the server classifies it AUTO. */
 export async function createDisruptionProposal(user: SessionUser, tripId: string, dayIndex: number, disruption: Disruption) {
+  await warmDay(tripId, dayIndex);
   const out = await write((db) => {
     const rec = findTrip(db, user, tripId);
     if (user.role === "traveller" && rec.ownerId !== user.id) throw new HttpError(403, "Not your trip");
@@ -326,7 +342,7 @@ export async function createDisruptionProposal(user: SessionUser, tripId: string
     }
     if (option.risk.tier === "AUTO" && option.patches.length > 0) {
       proposal.undoSnapshot = day;
-      setDay(rec, applyPatches(day, option.patches));
+      setDay(rec, applyPatches(day, option.patches, { routed: routedLookup }));
       proposal.status = "AUTO_APPLIED";
       proposal.appliedOptionId = option.id;
       proposal.appliedVersion = rec.trip.version;
@@ -387,7 +403,7 @@ export async function decideProposal(user: SessionUser, proposalId: string, deci
     }
     if (!canDecide(user.role, risk, { escalated, policy: rec.autonomy })) throw new HttpError(403, "This change needs your operator's approval");
     try {
-      setDay(rec, applyPatches(day, option.patches));
+      setDay(rec, applyPatches(day, option.patches, { routed: routedLookup }));
     } catch (e) {
       toHttp(e);
     }
@@ -424,4 +440,42 @@ export async function undoProposal(user: SessionUser, proposalId: string) {
   });
   publish({ type: "proposal.changed", tripId: out.tripId, proposalId });
   publish({ type: "trip.updated", tripId: out.tripId, version: out.version });
+}
+
+/** Opens a "Cluster Nearby" card for a commute-spike leg; the agent fills it after the response. */
+export async function startClusterProposal(user: SessionUser, tripId: string, dayIndex: number, nodeId: string) {
+  const out = await write((db) => {
+    const rec = findTrip(db, user, tripId);
+    if (user.role === "traveller" && rec.ownerId !== user.id) throw new HttpError(403, "Not your trip");
+    const day = findDay(rec, dayIndex);
+    const idx = day.nodes.findIndex((n) => n.id === nodeId);
+    if (idx === -1) throw new HttpError(404, "Stop not found");
+    if (idx === 0) throw new HttpError(422, "The first stop has no previous stop to cluster around");
+    const target = day.nodes[idx];
+    if (target.type === "HARD") throw new HttpError(422, "Locked bookings can't be swapped");
+    const dup = db.proposals.some((p) => p.tripId === tripId && p.status === "PENDING" && p.disruption.kind === "COMMUTE_SPIKE" && p.disruption.nodeId === nodeId);
+    if (dup) throw new HttpError(409, "Already looking for a closer option for this stop");
+    const proposal: ProposalRecord = {
+      id: newId(),
+      tripId,
+      dayIndex,
+      baseVersion: rec.trip.version,
+      createdAt: new Date().toISOString(),
+      createdBy: actorOf(user),
+      disruption: { kind: "COMMUTE_SPIKE", nodeId, reason: "Long commute" },
+      urgency: "RECOMMENDATION",
+      headline: `Long ride to ${target.title}`,
+      context: `Looking for a similar place near "${day.nodes[idx - 1].title}" that cuts travel time.`,
+      options: [],
+      status: "PENDING",
+      agentStatus: "RUNNING",
+      agentNote: "Starting…",
+      affectedNodeIds: [nodeId],
+    };
+    db.proposals.push(proposal);
+    log(db, tripId, actorOf(user), `Asked to cluster nearby: ${target.title}`);
+    return proposal.id;
+  });
+  publish({ type: "proposal.changed", tripId, proposalId: out });
+  return out;
 }

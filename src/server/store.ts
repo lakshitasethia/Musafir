@@ -24,6 +24,8 @@ export interface UserRecord {
   passwordHash: string;
   salt: string;
   createdAt: string;
+  /** Created automatically so the app works without login; upgraded in place by sign-up. */
+  guest?: boolean;
 }
 
 export interface TripRecord {
@@ -32,6 +34,8 @@ export interface TripRecord {
   autonomy: AutonomyPolicy;
   /** Planner agent progress, shown live in the UI. */
   planner?: { status: "RUNNING" | "DONE" | "FAILED"; note: string; at: string };
+  /** Last ambient sentinel run (rate limit). */
+  lastSentinelAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -48,6 +52,9 @@ export interface ProposalOption {
   rationale?: string;
 }
 
+/** What raised a proposal: an engine disruption, or an agent-led improvement. */
+export type ProposalTrigger = Disruption | { kind: "COMMUTE_SPIKE"; nodeId: string; reason: string };
+
 export type ProposalStatus = "PENDING" | "AUTO_APPLIED" | "APPLIED" | "DISMISSED" | "STALE" | "UNDONE";
 
 export interface ProposalRecord {
@@ -57,7 +64,7 @@ export interface ProposalRecord {
   baseVersion: number;
   createdAt: string;
   createdBy: string;
-  disruption: Disruption;
+  disruption: ProposalTrigger;
   urgency: "INFO" | "RECOMMENDATION" | "CRITICAL";
   headline: string;
   context: string;
@@ -83,75 +90,169 @@ export interface ActivityRecord {
   message: string;
 }
 
+export interface RoomOption {
+  id: string;
+  name: string;
+  nameNative?: string;
+  lat: number;
+  lng: number;
+  kind: string;
+  source: string;
+  diet: "not-needed" | "verified" | "unverified";
+  travelMinutes: number;
+}
+
+export interface RoomRecord {
+  id: string;
+  /** Unguessable join token (the share link). */
+  token: string;
+  tripId: string;
+  dayIndex: number;
+  ownerId: string;
+  start: string;
+  durationMinutes: number;
+  options: RoomOption[];
+  participants: { id: string; name: string; key: string; joinedAt: string }[];
+  votes: Record<string, Record<string, "yes" | "no">>;
+  status: "OPEN" | "DECIDED" | "CLOSED";
+  winnerOptionId?: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
 export interface Db {
   users: UserRecord[];
   trips: TripRecord[];
   proposals: ProposalRecord[];
   activity: ActivityRecord[];
+  rooms: RoomRecord[];
 }
 
-const EMPTY: Db = { users: [], trips: [], proposals: [], activity: [] };
+export const EMPTY_DB: Db = { users: [], trips: [], proposals: [], activity: [], rooms: [] };
 /** Activity entries kept per trip; older ones are trimmed on write. */
 const MAX_ACTIVITY_PER_TRIP = 200;
+/** How long a read trusts its cache before asking the database whether another instance wrote. */
+const FRESHNESS_MS = 750;
+
+/** Another instance wrote since we loaded; the write is retried on fresh data. */
+export class RevConflictError extends Error {
+  constructor() {
+    super("The data changed on another server; retrying");
+  }
+}
+
+/**
+ * Where the data lives. The file store is the default (dev, tests, single
+ * instance). Neo4j is used when NEO4J_URI/NEO4J_USERNAME/NEO4J_PASSWORD are set.
+ * A misconfigured or paused database is an error — never a silent fallback to
+ * the file (two sources of truth lose writes).
+ */
+export interface StorageAdapter {
+  name: "file" | "neo4j";
+  load(): Promise<{ db: Db; rev: number }>;
+  /** Cheap check for writes from other instances; null = this adapter has no other writers. */
+  currentRev(): Promise<number | null>;
+  /** Persists `next` (diffing against `prev` if useful); throws RevConflictError if the rev moved. */
+  persist(prev: Db, next: Db, expectedRev: number): Promise<number>;
+}
+
+const fileAdapter: StorageAdapter = {
+  name: "file",
+  async load() {
+    try {
+      const raw = JSON.parse(await fs.readFile(DB_FILE, "utf8")) as Partial<Db>;
+      return { db: { ...structuredClone(EMPTY_DB), ...raw }, rev: 0 };
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+      return { db: structuredClone(EMPTY_DB), rev: 0 };
+    }
+  },
+  async currentRev() {
+    return null;
+  },
+  async persist(_prev, next) {
+    await fs.mkdir(DATA_DIR, { recursive: true });
+    const tmp = `${DB_FILE}.${process.pid}.${Date.now()}.tmp`;
+    await fs.writeFile(tmp, JSON.stringify(next, null, 2), "utf8");
+    await fs.rename(tmp, DB_FILE);
+    return 0;
+  },
+};
+
+export function storageKind(): "file" | "neo4j" {
+  return process.env.NEO4J_URI ? "neo4j" : "file";
+}
 
 interface StoreState {
   db: Db | null;
-  loading: Promise<Db> | null;
+  rev: number;
+  checkedAt: number;
+  adapter: Promise<StorageAdapter> | null;
   queue: Promise<unknown>;
 }
 const g = globalThis as typeof globalThis & { __musafirStore?: StoreState };
-const state: StoreState = (g.__musafirStore ??= { db: null, loading: null, queue: Promise.resolve() });
+const state: StoreState = (g.__musafirStore ??= { db: null, rev: 0, checkedAt: 0, adapter: null, queue: Promise.resolve() });
 
-async function load(): Promise<Db> {
-  if (state.db) return state.db;
-  state.loading ??= (async () => {
-    try {
-      const raw = JSON.parse(await fs.readFile(DB_FILE, "utf8")) as Partial<Db>;
-      state.db = { ...structuredClone(EMPTY), ...raw };
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
-      state.db = structuredClone(EMPTY);
-    }
-    return state.db;
-  })();
-  return state.loading;
+function adapter(): Promise<StorageAdapter> {
+  state.adapter ??= storageKind() === "neo4j" ? import("./store-neo4j.ts").then((m) => m.neo4jAdapter()) : Promise.resolve(fileAdapter);
+  return state.adapter;
 }
 
-async function persist(db: Db) {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  const tmp = `${DB_FILE}.${process.pid}.${Date.now()}.tmp`;
-  await fs.writeFile(tmp, JSON.stringify(db, null, 2), "utf8");
-  await fs.rename(tmp, DB_FILE);
+/** Loads once; afterwards reloads only if another instance has written since. */
+async function fresh(force = false): Promise<Db> {
+  const a = await adapter();
+  if (state.db && !force) {
+    if (Date.now() - state.checkedAt < FRESHNESS_MS) return state.db;
+    const rev = await a.currentRev();
+    state.checkedAt = Date.now();
+    if (rev === null || rev === state.rev) return state.db;
+  }
+  const loaded = await a.load();
+  state.db = loaded.db;
+  state.rev = loaded.rev;
+  state.checkedAt = Date.now();
+  return state.db;
 }
 
 /** Read-only snapshot. Do not mutate the result. */
 export async function read<T>(fn: (db: Readonly<Db>) => T): Promise<T> {
   await state.queue.catch(() => undefined);
-  return fn(await load());
+  return fn(await fresh());
 }
 
 /**
  * Serialized read-modify-write. `fn` mutates a draft; if it throws, nothing is
- * persisted and in-memory state is left untouched.
+ * persisted and in-memory state is left untouched. `fn` may run again if
+ * another instance wrote concurrently, so it must not have side effects
+ * (publish events after `write` resolves, never inside).
  */
 export function write<T>(fn: (db: Db) => T | Promise<T>): Promise<T> {
   const run = state.queue.catch(() => undefined).then(async () => {
-    const current = await load();
-    const draft = structuredClone(current);
-    const result = await fn(draft);
-    const counts = new Map<string, number>();
-    draft.activity = draft.activity
-      .slice()
-      .reverse()
-      .filter((a) => {
-        const n = (counts.get(a.tripId) ?? 0) + 1;
-        counts.set(a.tripId, n);
-        return n <= MAX_ACTIVITY_PER_TRIP;
-      })
-      .reverse();
-    await persist(draft);
-    state.db = draft;
-    return result;
+    const a = await adapter();
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const current = await fresh(attempt > 0);
+      const draft = structuredClone(current);
+      const result = await fn(draft);
+      const counts = new Map<string, number>();
+      draft.activity = draft.activity
+        .slice()
+        .reverse()
+        .filter((x) => {
+          const n = (counts.get(x.tripId) ?? 0) + 1;
+          counts.set(x.tripId, n);
+          return n <= MAX_ACTIVITY_PER_TRIP;
+        })
+        .reverse();
+      try {
+        state.rev = await a.persist(current, draft, state.rev);
+        state.db = draft;
+        state.checkedAt = Date.now();
+        return result;
+      } catch (e) {
+        if (!(e instanceof RevConflictError)) throw e;
+      }
+    }
+    throw new Error("Too many concurrent changes; please try again");
   });
   state.queue = run;
   return run;

@@ -116,3 +116,21 @@ test("planDays: near-identical OSM duplicates collapse into one stop", () => {
   });
   assert.equal(spaced[0].nodes.length, 1);
 });
+
+test("planDays: meals never conflict with dietary needs and are labelled honestly", () => {
+  const cands = [
+    place(40, 0.001, 0.001, "CULTURE", "tourism=museum"),
+    place(41, 0.0012, 0.001, "CULTURE", "tourism=gallery"),
+    { ...place(42, 0.0011, 0.001, "DINING", "amenity=restaurant"), diet: { "diet:vegetarian": "no" } },
+    { ...place(43, 0.003, 0.001, "DINING", "amenity=restaurant"), diet: { "diet:vegetarian": "only" } },
+  ];
+  const check = (tags: Record<string, string> | undefined) =>
+    tags?.["diet:vegetarian"] === "only" ? ("verified" as const) : tags?.["diet:vegetarian"] === "no" ? ("conflicts" as const) : ("unverified" as const);
+  const out = planDays({ days: [days[0]], candidates: cands, vibe: { ...vibe, circadian: 0.3, pacing: 0.3 }, center, radiusMeters: 3000, city: "J", idFactory, dietary: ["vegetarian"], dietCheck: check });
+  const meals = out[0].nodes.filter((x) => x.category === "DINING");
+  assert.ok(meals.length > 0);
+  assert.ok(meals.every((m) => m.metadata!.sourceId !== "node/42"));
+  assert.equal(meals[0].metadata!.diet, "verified");
+  const noClaims = planDays({ days: [days[0]], candidates: cands.slice(0, 2).concat([place(44, 0.0011, 0.001, "DINING", "amenity=cafe")]), vibe: { ...vibe, circadian: 0.3, pacing: 0.3 }, center, radiusMeters: 3000, city: "J", idFactory, dietary: ["vegan"] });
+  assert.equal(noClaims[0].nodes.find((x) => x.category === "DINING")?.metadata!.diet, "unverified");
+});

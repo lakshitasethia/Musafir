@@ -16,6 +16,7 @@ import type { TripPatch } from "@/lib/musafir/schemas.ts";
 import { publish } from "./events.ts";
 import { llmJson } from "./llm.ts";
 import { nearbyCandidates, searchPlaces, type CandidatePurpose } from "./osm.ts";
+import { cachedLeg, routedLookup, warmLegs } from "./routing.ts";
 import { read, write, type TripRecord } from "./store.ts";
 
 const SEARCH_RADIUS_M = 3000;
@@ -65,6 +66,7 @@ export async function runPlanner(tripId: string): Promise<void> {
             kind: c.kind,
             openingHours: c.openingHours,
             source: c.source,
+            diet: c.diet,
           });
         }
       } catch (e) {
@@ -98,9 +100,10 @@ export async function runPlanner(tripId: string): Promise<void> {
     const curatedOrder = curated.ok ? [...new Set(curated.value.order)].filter((i) => i < shortlist.length).map((i) => shortlist[i].sourceId) : undefined;
     const rankedBy = curated.ok ? `curated by ${curated.via}` : `ranked by open-data score (AI curator unavailable: ${curated.reason})`;
 
-    await setPlanner(tripId, { status: "RUNNING", note: "Clustering neighbourhoods and timing each day…", at: at() });
+    await setPlanner(tripId, { status: "RUNNING", note: "Fetching real travel times and clustering neighbourhoods…", at: at() });
+    const routing = await warmLegs(candidates).catch(() => "unavailable" as const);
     const emptyDays = rec.trip.schedule.filter((d) => d.nodes.length === 0).map((d) => ({ dayIndex: d.dayIndex, date: d.date }));
-    const planned = planDays({ days: emptyDays, candidates, vibe, center, radiusMeters: SEARCH_RADIUS_M, city, curatedOrder, idFactory: newId });
+    const planned = planDays({ days: emptyDays, candidates, vibe, center, radiusMeters: SEARCH_RADIUS_M, city, curatedOrder, idFactory: newId, leg: cachedLeg, dietary: rec.trip.dietaryRestrictions });
 
     const summary = await write((db) => {
       const cur = db.trips.find((t) => t.trip.id === tripId);
@@ -116,7 +119,7 @@ export async function runPlanner(tripId: string): Promise<void> {
           payload,
           reason: `Planned "${payload.title}"`,
         }));
-        const next = applyPatches(day, patches);
+        const next = applyPatches(day, patches, { routed: routedLookup });
         cur.trip.schedule = cur.trip.schedule.map((d) => (d.dayIndex === p.dayIndex ? next : d));
         filled++;
         db.activity.push({
@@ -134,7 +137,7 @@ export async function runPlanner(tripId: string): Promise<void> {
       cur.planner = {
         status: "DONE",
         note: filled
-          ? `Planned ${filled} day${filled > 1 ? "s" : ""} from ${candidates.length} real places — ${rankedBy}.`
+          ? `Planned ${filled} day${filled > 1 ? "s" : ""} from ${candidates.length} real places — ${rankedBy}; travel times ${routing === "unavailable" ? "estimated (OSRM unreachable)" : "from OSRM road routing"}.`
           : emptyDays.length
             ? "Couldn't fit any places into the empty days."
             : "Every day already has stops — nothing to plan.",

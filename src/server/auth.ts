@@ -27,6 +27,7 @@ export interface SessionUser {
   email: string;
   name: string;
   role: Role;
+  guest: boolean;
 }
 
 export class HttpError extends Error {
@@ -87,9 +88,34 @@ export const LoginSchema = z.object({
   password: z.string(),
 });
 
-const toSession = (u: UserRecord): SessionUser => ({ id: u.id, email: u.email, name: u.name, role: u.role });
+const toSession = (u: UserRecord): SessionUser => ({ id: u.id, email: u.email, name: u.name, role: u.role, guest: !!u.guest });
 
-export async function signup(input: z.infer<typeof SignupSchema>): Promise<SessionUser> {
+/** Guests per IP per hour — enough for real use, stops scripted account spam. */
+const GUEST_LIMIT_PER_HOUR = 20;
+const gg = globalThis as typeof globalThis & { __musafirGuests?: Map<string, { at: number; n: number }> };
+const guestRate = (gg.__musafirGuests ??= new Map());
+
+/**
+ * A traveller account with no email/password, so every traveller feature works
+ * without logging in. Its trips stay attached when it later signs up (upgrade in place).
+ */
+export async function createGuest(ip: string): Promise<SessionUser> {
+  await secret();
+  const now = Date.now();
+  const cur = guestRate.get(ip);
+  if (!cur || now - cur.at > 3_600_000) guestRate.set(ip, { at: now, n: 1 });
+  else if (++cur.n > GUEST_LIMIT_PER_HOUR) throw new HttpError(429, "Too many new sessions from this network — try again later");
+  const salt = randomBytes(16).toString("hex");
+  const passwordHash = randomBytes(KEY_LEN).toString("hex"); // unguessable: guests can't log in with a password
+  return write((db) => {
+    const user: UserRecord = { id: newId(), email: "", name: "Guest", role: "traveller", passwordHash, salt, createdAt: new Date().toISOString(), guest: true };
+    db.users.push(user);
+    return toSession(user);
+  });
+}
+
+/** Sign-up; when called by a guest traveller it upgrades that account so their trips carry over. */
+export async function signup(input: z.infer<typeof SignupSchema>, current?: SessionUser | null): Promise<SessionUser> {
   await secret(); // fail on missing config before creating an account
   if (input.role === "operator") {
     const mode = operatorSignupMode();
@@ -102,6 +128,11 @@ export async function signup(input: z.infer<typeof SignupSchema>): Promise<Sessi
   const passwordHash = await hashPassword(input.password, salt);
   return write((db) => {
     if (db.users.some((u) => u.email === input.email)) throw new HttpError(409, "An account with this email already exists");
+    const guest = current?.guest && input.role === "traveller" ? db.users.find((u) => u.id === current.id && u.guest) : undefined;
+    if (guest) {
+      Object.assign(guest, { email: input.email, name: input.name, passwordHash, salt, guest: false });
+      return toSession(guest);
+    }
     const user: UserRecord = {
       id: newId(),
       email: input.email,
@@ -117,7 +148,7 @@ export async function signup(input: z.infer<typeof SignupSchema>): Promise<Sessi
 }
 
 export async function login(input: z.infer<typeof LoginSchema>): Promise<SessionUser> {
-  const user = await read((db) => db.users.find((u) => u.email === input.email));
+  const user = await read((db) => (input.email ? db.users.find((u) => u.email === input.email && !u.guest) : undefined));
   // Hash even for unknown emails so timing doesn't reveal which accounts exist.
   const hash = await hashPassword(input.password, user?.salt ?? "0".repeat(32));
   if (!user || !safeEqualHex(hash, user.passwordHash)) throw new HttpError(401, "Wrong email or password");

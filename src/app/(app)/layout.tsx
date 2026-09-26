@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./app.css";
 import "./app.functional.css";
+import { SmoothScroll } from "./_components/SmoothScroll";
 
 export const metadata: Metadata = {
   title: "Musafir",
@@ -15,5 +16,10 @@ export const viewport: Viewport = {
 };
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  return <div className="mz-app">{children}</div>;
+  return (
+    <div className="mz-app">
+      <SmoothScroll />
+      {children}
+    </div>
+  );
 }

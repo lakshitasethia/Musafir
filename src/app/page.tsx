@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import React, { useEffect, useRef, useState } from "react";
 import Lenis from "lenis";
 import { HeroMask } from "./components/HeroMask";
@@ -177,27 +178,30 @@ export default function MusafirExperience() {
             {/* Left Nav Menu */}
             <nav className="nav_menu" role="navigation">
               <div className="nav_menu-content">
-                <a href="#about" className="nav_menu_link">
-                  ABOUT
+                {/* Product entry points: all work without login — a guest session starts on arrival.
+                    Plain <a> on purpose: a full page load lets the guest-session redirect set its cookie. */}
+                {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+                <a href="/trip" className="nav_menu_link">
+                  PLAN
                 </a>
-                <a href="#private" className="nav_menu_link">
-                  PRIVATE
+                <a href="/flights" className="nav_menu_link">
+                  FLIGHTS
                 </a>
-                <a href="#corporate" className="nav_menu_link">
-                  CORPORATE
+                <a href="/hotels" className="nav_menu_link">
+                  HOTELS
                 </a>
-                <a href="#careers" className="nav_menu_link">
-                  CAREERS
+                <a href="/packages" className="nav_menu_link">
+                  PACKAGES
                 </a>
               </div>
             </nav>
 
             {/* Center Brand Logo */}
-            <a href="/" className="nav_brand" aria-label="Musafir home">
+            <Link href="/" className="nav_brand" aria-label="Musafir home">
               <div className="nav_logo">
                 <span className="nav_wordmark">Musafir</span>
               </div>
-            </a>
+            </Link>
 
             {/* Right Contact Button */}
             <div className="nav_contact-wrp">

@@ -306,3 +306,12 @@ test("ids: fallback without crypto.randomUUID yields schema-valid v4 UUIDs", () 
     Object.defineProperty(crypto, "randomUUID", { value: original, configurable: true });
   }
 });
+
+test("transit segments prefer routed legs (OSRM) over estimates", () => {
+  const d = day([node(1, "SOFT", "10:00", 60), node(2, "SOFT", "12:00", 60, { location: { lat: 26.95, lng: 75.85, city: "Jaipur" } })]);
+  const plain = applyPatches(d, []);
+  const routed = applyPatches(d, [], { routed: () => ({ mode: "CAB", durationMinutes: 42, distanceMeters: 9000 }) });
+  assert.notEqual(plain.transitSegments[0].durationMinutes, 42);
+  assert.equal(routed.transitSegments[0].durationMinutes, 42);
+  assert.equal(routed.transitSegments[0].distanceMeters, 9000);
+});

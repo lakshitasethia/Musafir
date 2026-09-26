@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "./api";
 
-export function AuthForm({ mode, operatorMode }: { mode: "login" | "signup"; operatorMode: "invite" | "open-dev" | "disabled" }) {
+export function AuthForm({ mode, operatorMode, guest = false }: { mode: "login" | "signup"; operatorMode: "invite" | "open-dev" | "disabled"; guest?: boolean }) {
   const router = useRouter();
   const [role, setRole] = useState<"traveller" | "operator">("traveller");
   const [error, setError] = useState<string | null>(null);
@@ -36,8 +36,14 @@ export function AuthForm({ mode, operatorMode }: { mode: "login" | "signup"; ope
         <Link href="/" className="mz-brand">
           Musafir
         </Link>
-        <h1 className="mz-display mz-h1">{mode === "login" ? "Welcome back" : "Begin the journey"}</h1>
-        {mode === "signup" && (
+        <h1 className="mz-display mz-h1">{mode === "login" ? "Welcome back" : guest ? "Save your trips" : "Begin the journey"}</h1>
+        {guest && mode === "signup" && <p className="mz-note">You&apos;re using Musafir as a guest. Add an email and password to keep your trips on any device — nothing you planned is lost.</p>}
+        {mode === "login" && (
+          <Link className="mz-btn mz-btn-ghost" href="/api/auth/guest?next=/trip">
+            Continue without an account
+          </Link>
+        )}
+        {mode === "signup" && !guest && (
           <div className="mz-row" role="group" aria-label="Account type">
             {(["traveller", "operator"] as const).map((r) => (
               <button key={r} type="button" className="mz-chip" aria-pressed={role === r} onClick={() => setRole(r)} disabled={r === "operator" && operatorMode === "disabled"}>

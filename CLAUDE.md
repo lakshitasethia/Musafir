@@ -46,6 +46,8 @@ npm run build   # run before every merge to main
 - Next 16: `params` and `cookies()` are async, `middleware` is now `proxy`, and background work after a response uses `after()`. Read `node_modules/next/dist/docs/` before using an unfamiliar API (see AGENTS.md).
 - Env vars go in `.env.local` (template: `.env.example`). All are optional in dev. `AUTH_SECRET` is required in production. Use `||`, not `??`, for env defaults, so empty strings fall back.
 - Local data lives in `.data/` (gitignored): users, trips, dev secret.
+- **Storage is an adapter** (`src/server/store.ts`): the JSON file store by default; **Neo4j graph database** when `NEO4J_URI`/`NEO4J_USERNAME`/`NEO4J_PASSWORD` are set (`src/server/store-neo4j.ts`, mapping in `src/lib/musafir/graph-mapping.ts`). Callers only use `read`/`write`; `write` callbacks must be side-effect free (they may re-run on a cross-instance conflict). Import existing data once with `npm run db:import-neo4j`.
+- **No login needed for travellers**: traveller pages start a guest session automatically (`/api/auth/guest`); "Save my trips" upgrades the guest in place. Operator pages require a real operator login.
 
 ---
 
@@ -134,16 +136,16 @@ LLM calls go only through `src/server/llm.ts`:
 
 | Role / worker | Verdict | Implementation |
 |---|---|---|
-| Router / Classifier | Code for typed events; LLM only for operator free-text micro-edits (Tier 2 → `TripPatch`) | Events are typed today. Tier 2 router **not built** |
+| Router / Classifier | Code for typed events; LLM only for operator free-text micro-edits (Tier 2 → `TripPatch`) | **Built**: `lib/musafir/microedit.ts` grammar first, LLM fallback returns {op, stop index, minutes} only; operator previews, then applies (`server/microedit.ts`) |
 | Worker / Executor | Keep | `agents.ts`, `planner.ts` |
-| Critic / Auditor | Keep, **as code** | `applyPatches`, `classifyRisk`, `heal`; new auditors in `src/lib/musafir/auditors/` |
+| Critic / Auditor | Keep, **as code** | `applyPatches`, `classifyRisk`, `heal`. Contract `lib/musafir/auditor-contract.ts`, registry `server/auditors.ts` (empty until Parth's `auditors/*` land); findings shown per day |
 | Synthesizer | Words only (headline/rationale), template fallback | Rationale in Resolver; headlines are templates |
-| Sentinel / Watchdog | Keep, **zero-LLM**. **Vercel Hobby cron = once/day** (verified 2026-09-26), so trigger it on trip-page open (every 10 min), from a GitHub Actions schedule → `/api/sentinel`, and from the manual forecast check | Manual Open-Meteo check **built**; `/api/sentinel` + schedule **not built** |
+| Sentinel / Watchdog | Keep, **zero-LLM**. **Vercel Hobby cron = once/day** (verified 2026-09-26), so trigger it on trip-page open (every 10 min), from a GitHub Actions schedule → `/api/sentinel`, and from the manual forecast check | **Built**: `lib/musafir/sentinel.ts` + `server/sentinel.ts`, destination-local clock, dedupe, per-trip rate limit; `/api/sentinel` (session or `SENTINEL_SECRET`); trip page polls every 10 min. GitHub Actions schedule = Parth |
 | Discovery & Venue Specialist | Keep | **Built**: OSM within 3 km, vibe score, LLM curator (index-only), dedupe of OSM duplicates |
 | Disruption Resolver | Keep | **Built**: real venues ≤ 800 m, LLM picks 1 of 3 (or nearest, labelled), REMOVE+INSERT |
-| Dining & Dietary Matcher | Keep, narrowed | Meal windows **built** in the planner. Diet only from OSM `diet:*` tags, else "diet unverified"; never assert safety (**not built**) |
+| Dining & Dietary Matcher | Keep, narrowed | **Built**: `lib/musafir/dining.ts` + planner meals + group-room options; OSM `diet:*` tags captured; injectable checker defaults to "unverified" until Parth's `diet.ts` |
 | Pacing & Fatigue Auditor | Keep, pure code | Leg/day fatigue **built** in `geo.ts`; auditor with rest buffers + Open-Meteo heat/UV/elevation **not built** |
-| Logistics & Transit | Keep, narrowed | Walk vs cab estimates **built**; OSRM (car only: walking = road distance ÷ pace) not yet used in scheduling; Transitland needs a key. **Rejected:** hardcoded rail-pass rules |
+| Logistics & Transit | Keep, narrowed | **Built**: OSRM table (≤1 req/s, cached) warmed before every write and used by engine + planner (`server/routing.ts`), Haversine fallback. Transitland needs a key. **Rejected:** hardcoded rail-pass rules |
 | Budget & Expense Auditor | Keep, pure code | Sums **known** costs only; open data has no prices (**not built**) |
 | Concierge & Cultural Guide | **Rejected as a chatbot** | Replace with tap-to-read "Know before you go" cards. Emergency numbers, visas and plugs come from a **verified static dataset** (`src/data/`), never an LLM |
 
@@ -155,11 +157,13 @@ LLM calls go only through `src/server/llm.ts`:
 |---|---|---|
 | LLM | Groq (JSON mode on all models; `openai/gpt-oss-20b` / `-120b` listed 2026-09), Gemini via OpenAI-compatible endpoint | Optional; deterministic fallback everywhere |
 | Geocoding / place search | Nominatim | ≤ 1 req/s, identifying User-Agent, cache, no autocomplete-per-keystroke (search on submit) |
-| POIs | Overpass (mirrors via `OVERPASS_URLS`) | **Some networks block it** (Aryan's did). Falls back to Nominatim bounded keyword search; circuit breaker skips Overpass for 5 min after all mirrors fail |
+| POIs / search | Overpass (mirrors via `OVERPASS_URLS`) → Nominatim → Photon (photon.komoot.io) | Tried in that order. Some networks block Overpass and Photon (Aryan's does). On HTTP 429 Nominatim is left alone for 10 min. Results are cached in `.data/osm-cache.json` for 7 days and served stale if every source fails, so a place looked up once keeps working |
 | Routing | OSRM public demo | **Car profile only** (a `foot` request returns car results) |
 | Weather | Open-Meteo | No key; forecast horizon ~16 days (outside it, say so) |
 | Hosting | Vercel Hobby | Cron **once per day** max. File store and in-process SSE are **single-instance only** → Supabase (Postgres + Realtime) for multi-instance |
-| DB / realtime (planned) | Supabase free tier | Adapter not built yet |
+| Graph database | Neo4j AuraDB Free (chosen by the team) | 50k nodes / 175k relationships; **pauses after 3 days idle** (resume in the Aura console). Trips are native graphs: `(User)-[:OWNS]->(Trip)-[:HAS_DAY]->(Day)-[:HAS_STOP]->(Stop)-[:NEXT]->(Stop)` |
+| Live flights | OpenSky Network (anonymous) | 400 credits/day, global snapshot costs 4 → cached 60 s. Current positions only |
+| Flights/hotel booking | none free | Hand-off links (Google Flights, Booking.com) with trip details prefilled; **no prices shown** |
 
 ---
 
@@ -195,30 +199,28 @@ Proposals (`store.ts` `ProposalRecord`) carry `baseVersion`, options with a serv
 
 ## 9. Status
 
-**Built and verified** (36 unit tests; API smoke tests; browser pass of both personas):
-- Auth with traveller/operator personas, server-side page gates, and operator invite code (open in dev)
-- Trip creation with Vibe faders + dietary input → **planner agent auto-drafts every empty day**; "Plan empty days" button; live planner status
-- Journey graph: time-scaled, winding route drawn on scroll, numbered markers, transit legs coloured by commute band, "tight" warnings, drag and keyboard to shift SOFT stops, tap to edit, add/delete via Nominatim search; operators rebook HARD stops
-- Self-healing: delay / closure / rain simulator, min-cost recovery, auto-apply + undo, traveller cards with diff preview, operator queue with reply-by deadline, stale detection
-- Disruption Resolver agent, real Open-Meteo rain check, activity log, SSE live updates on both screens
+**Built and verified** (59 unit tests; API smoke tests; browser pass incl. WebGL map, server-down offline test, guest flow):
+- **No-login use**: guest traveller sessions on first visit; upgrade on sign-up keeps trips. Operators log in.
+- Landing nav: PLAN · FLIGHTS · HOTELS · PACKAGES; app top bar: HOME · TRIPS · FLIGHTS · HOTELS · PACKAGES (operators: HOME · OPERATIONS)
+- Trip creation with Vibe faders + diet → **planner agent** drafts every empty day (OSM places, OSRM travel times, diet-aware meals)
+- **Packages**: preset travel styles → one tap creates and plans a trip
+- **Flights**: Google Flights hand-off prefilled from the trip; **live flight tracking** (OpenSky)
+- **Hotels**: real OSM accommodation near the trip's stops (stars only if OSM has them), Booking.com hand-off, "Add to my trip" (+ Taxi card)
+- Journey graph (route drawn on scroll, drag with optimistic UI), CRUD, operator rebooking of HARD stops
+- Self-healing simulator (delay / closure / rain) → min-cost recovery → AUTO / TRAVELLER / OPERATOR tiers, live escalation timer
+- Sentinel (next 2 h rain, destination-local), Cluster Nearby, Dining Matcher, Resolver, planner curator — all with labelled deterministic fallbacks
+- MapLibre commute map; Tier 2 operator quick edits; offline IndexedDB + service worker + Taxi Rescue card (Lakshita's `TaxiCard`); Group Vibe Check rooms
+- Lakshita's UI integrated: `ActionRibbon`, `TaxiCard`, dark torn-edge simulator band (`.mz-simulator`), `SectionHeader`
+- App-wide motion (`_components/SmoothScroll.tsx`): Lenis + GSAP ScrollTrigger reveals/parallax on every app page, like the landing
+- Neo4j storage adapter + import script (**not yet run against a real Neo4j** — needs credentials)
 
-**Not built yet:**
-- Tier 2 router
-- Sentinel route + schedule
-- Pacing, Budget and Dining auditors
-- `src/data/` verified datasets
-- OSRM in scheduling; Transitland
-- MapLibre commute map + `[Cluster Nearby]`
-- Offline (IndexedDB + service worker) + Taxi Rescue card
-- Group rooms
-- Supabase adapter
-- Live escalation timer (escalation currently shows on the next refetch)
-- Optimistic UI
-- The Flyward restyle of app screens
+**Not built / limits:**
+- Parth: `auditors/*`, `src/data/*` verified datasets (KnowCard facts, translated "take me here" phrase), GitHub Actions sentinel workflow
+- Realtime across instances: SSE is in-process; multiple servers need a shared channel (e.g. Supabase Realtime / Redis) even with Neo4j
+- Transitland (needs a key); phonetic romanization on the Taxi card
+- Flight/hotel **booking and prices** are out of scope (no free API) — hand-offs only
 
-**Caveats:**
-- The LLM path has never run with a real key.
-- Overpass has been unreachable from Aryan's network, so candidates came from Nominatim.
+**Caveats:** LLM path never run with a real key. Overpass blocked on Aryan's network (Nominatim fallback). Sentinel's rain path unit-tested (no rain during testing).
 
 ---
 
@@ -256,7 +258,9 @@ Everything here runs with `npm test` or needs no running app. **Parth never need
    - Lakshita needs new markup? She asks Aryan for a class or `data-*` hook, or builds a `_ui` component.
    - Aryan needs a new visual? He adds a semantic class and a minimal rule in `app.functional.css`.
 2. **Types** (everyone). `_ui` components and auditors take plain values typed from `schemas.ts` and never import `src/server`.
-3. **Known shared edit:** Aryan added a `LOG IN` pill (→ `/login`) in `src/app/page.tsx`'s nav. Lakshita keeps it (restyle freely).
+3. **Known shared edits in Lakshita's files** (keep them when restyling):
+   - `src/app/page.tsx` nav: `LOG IN` pill (→ `/login`); left links PLAN (`/trip`) · FLIGHTS · HOTELS · PACKAGES. The PLAN link is a plain `<a>` on purpose (full load so the guest session cookie is set).
+   - `src/app/page.tsx` brand link switched to `<Link>` (lint error fix).
 4. **Branches:** `ui/*` (Lakshita), `data/*` (Parth), `feat/*` (Aryan).
    - Aryan merges: `git fetch` → `git merge origin/<branch>` → resolve → `npm test && npx tsc --noEmit && npm run build` → push.
    - Never force-push `main`.
@@ -273,3 +277,5 @@ Everything here runs with `npm test` or needs no running app. **Parth never need
 | Motion: route draw, Lenis, card springs | Landing page (ongoing) | `docs/api-contract.md`, `docs/demo-script.md` |
 | Offline (IndexedDB + SW), Supabase adapter + Realtime | — | Real-phone QA passes |
 | Live escalation timer, optimistic UI, builds/merges | — | — |
+
+**Aryan column status (2026-09-26):** all done except the Supabase adapter + Realtime and Transitland, which need keys or accounts. Wiring of Parth's auditors is ready: add them to `src/server/auditors.ts`.

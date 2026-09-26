@@ -116,16 +116,24 @@ export function buildSegment(from: ItineraryNode, to: ItineraryNode, leg: LegEst
  * for the same pair are kept (they may carry real SUBWAY/BUS data); new
  * adjacencies are estimated.
  */
+export type LegLookup = (from: ItineraryNode, to: ItineraryNode) => LegEstimate | undefined;
+
+/**
+ * Transit segments for consecutive nodes (in the given order). Precedence:
+ * routed leg (e.g. cached OSRM) → existing segment for the same pair → Haversine estimate.
+ */
 export function rebuildTransitSegments(
   orderedNodes: readonly ItineraryNode[],
   existing: readonly TransitSegment[] = [],
+  routed?: LegLookup,
 ): TransitSegment[] {
   const known = new Map(existing.map((s) => [`${s.fromNodeId}>${s.toNodeId}`, s]));
   const out: TransitSegment[] = [];
   for (let i = 1; i < orderedNodes.length; i++) {
     const from = orderedNodes[i - 1];
     const to = orderedNodes[i];
-    out.push(known.get(`${from.id}>${to.id}`) ?? buildSegment(from, to, estimateLeg(from.location, to.location)));
+    const leg = routed?.(from, to);
+    out.push(leg ? buildSegment(from, to, leg) : (known.get(`${from.id}>${to.id}`) ?? buildSegment(from, to, estimateLeg(from.location, to.location))));
   }
   return out;
 }

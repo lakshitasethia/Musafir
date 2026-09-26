@@ -14,17 +14,22 @@
  */
 import { z } from "zod";
 import { newId } from "@/lib/musafir/ids.ts";
+import { MIN_CLUSTER_SAVING_MIN, pickClusterReplacement } from "@/lib/musafir/cluster.ts";
+import { estimateLeg } from "@/lib/musafir/geo.ts";
 import { applyPatches } from "@/lib/musafir/reducer.ts";
 import { classifyRisk } from "@/lib/musafir/risk.ts";
 import type { DaySchedule, ItineraryNode, TripPatch } from "@/lib/musafir/schemas.ts";
 import { publish } from "./events.ts";
 import { llmJson } from "./llm.ts";
 import { nearbyCandidates, type VenueCandidate } from "./osm.ts";
+import { cachedLeg, routedLookup, warmLegs } from "./routing.ts";
 import { write, read, type ProposalOption, type ProposalRecord } from "./store.ts";
 
 const SEARCH_RADIUS_M = 800;
 const MAX_CANDIDATES = 3;
 const MAX_TARGETS = 2;
+const CLUSTER_RADIUS_M = 1500;
+const CLUSTER_MAX_CANDIDATES = 40;
 
 const RankSchema = z.object({
   choice: z.number().int().min(0),
@@ -119,7 +124,7 @@ export async function runAlternativeAgent(proposalId: string): Promise<void> {
   });
   if (!start) return;
   const { p, rec } = start;
-  if (p.disruption.kind === "DELAY") return;
+  if (p.disruption.kind !== "CLOSURE" && p.disruption.kind !== "WEATHER") return;
 
   await setAgentState(p.id, p.tripId, { agentStatus: "RUNNING", agentNote: "Searching OpenStreetMap within 800 m…" });
   try {
@@ -216,5 +221,75 @@ export async function runAlternativeAgent(proposalId: string): Promise<void> {
     publish({ type: "proposal.changed", tripId: p.tripId, proposalId: created ?? p.id });
   } catch (e) {
     await setAgentState(p.id, p.tripId, { agentStatus: "FAILED", agentNote: `Couldn't search for alternatives: ${(e as Error).message}` });
+  }
+}
+
+/**
+ * Cluster Nearby worker: replaces the destination of a commute-spike leg with a
+ * similar real place near the previous stop, only if it genuinely saves time.
+ */
+export async function runClusterAgent(proposalId: string): Promise<void> {
+  const start = await read((db) => {
+    const p = db.proposals.find((x) => x.id === proposalId);
+    const rec = p && db.trips.find((t) => t.trip.id === p.tripId);
+    return p && rec ? { p: structuredClone(p), rec: structuredClone(rec) } : null;
+  });
+  if (!start) return;
+  const { p, rec } = start;
+  const trigger = p.disruption;
+  if (trigger.kind !== "COMMUTE_SPIKE") return;
+  const targetId = trigger.nodeId;
+  try {
+    const day = rec.trip.schedule.find((d) => d.dayIndex === p.dayIndex);
+    const idx = day?.nodes.findIndex((n) => n.id === targetId) ?? -1;
+    if (!day || idx < 1) throw new Error("that stop has no previous stop to cluster around");
+    const prev = day.nodes[idx - 1];
+    const target = day.nodes[idx];
+    const next = day.nodes[idx + 1];
+
+    await setAgentState(p.id, p.tripId, { agentStatus: "RUNNING", agentNote: `Searching near "${prev.title}"…` });
+    const venues = (await nearbyCandidates(prev.location, target.category, CLUSTER_RADIUS_M)).slice(0, CLUSTER_MAX_CANDIDATES);
+    const candidates = venues.map((v) => ({ id: v.osmId, name: v.nameEn ?? v.name, lat: v.lat, lng: v.lng, venue: v }));
+    await warmLegs([prev.location, target.location, ...(next ? [next.location] : []), ...candidates]).catch(() => undefined);
+    const minutes = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => cachedLeg(a, b)?.durationMinutes ?? estimateLeg(a, b).durationMinutes;
+    const choice = pickClusterReplacement(prev, target, next, candidates, day.nodes.map((n) => n.title), minutes);
+
+    const option: ProposalOption | null = choice
+      ? (() => {
+          const patches = replacementPatches(day, target, choice.candidate.venue, "Commute spike");
+          applyPatches(day, patches, { routed: routedLookup });
+          return {
+            id: newId(),
+            label: `Swap "${target.title}" for ${choice.candidate.name} near ${prev.title} — saves ~${choice.saving} min`,
+            source: "agent" as const,
+            patches,
+            conflicts: [],
+            risk: classifyRisk(day, patches, [], rec.autonomy),
+            rankedBy: "shortest total travel (deterministic)",
+            rationale: `Travel around this stop drops from ${choice.before} to ${choice.after} min.`,
+          };
+        })()
+      : null;
+
+    await write((db) => {
+      const cur = db.proposals.find((x) => x.id === p.id);
+      const trip = db.trips.find((t) => t.trip.id === p.tripId);
+      if (!cur || !trip) return;
+      cur.agentStatus = "DONE";
+      if (!option) {
+        cur.agentNote = `No ${target.category.toLowerCase()} place near "${prev.title}" saves at least ${MIN_CLUSTER_SAVING_MIN} min.`;
+        return;
+      }
+      if (cur.status !== "PENDING" || trip.trip.version !== cur.baseVersion) {
+        cur.agentNote = "The plan changed while searching; ask again.";
+        return;
+      }
+      cur.options.push(option);
+      cur.agentNote = `Found a closer option (${venues[0]?.source ?? "open data"}).`;
+      db.activity.push({ id: newId(), tripId: p.tripId, at: new Date().toISOString(), actor: "agent", message: `Suggested: ${option.label}` });
+    });
+    publish({ type: "proposal.changed", tripId: p.tripId, proposalId: p.id });
+  } catch (e) {
+    await setAgentState(p.id, p.tripId, { agentStatus: "FAILED", agentNote: `Couldn't search: ${(e as Error).message}` });
   }
 }
