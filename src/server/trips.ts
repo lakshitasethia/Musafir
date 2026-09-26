@@ -326,10 +326,6 @@ export async function createDisruptionProposal(
   disruption: Disruption,
   opts: { review?: { probability?: number } } = {},
 ) {
-  // Travellers report what only they know (late, closed). Weather comes from forecasts and goes to the operator.
-  if (disruption.kind === "WEATHER" && user.role === "traveller" && !opts.review) {
-    throw new HttpError(403, "Weather is watched for you — your operator will send an advisory if it matters");
-  }
   await warmDay(tripId, dayIndex);
   const out = await write((db) => {
     const rec = findTrip(db, user, tripId);

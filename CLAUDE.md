@@ -200,7 +200,9 @@ Proposals (`store.ts` `ProposalRecord`) carry `baseVersion`, options with a serv
 
 ## 9. Status
 
-**Built and verified** (140 unit tests + 95 WhatsApp-bot tests; 56/57 end-to-end checks on Neo4j + Groq on 2026-09-27 — the one failure is OpenSky's daily quota; browser pass of the twin panel incl. WebGL map):
+**Built and verified** (149 unit tests + 95 WhatsApp-bot tests; 66/67 end-to-end checks on Neo4j + Groq on 2026-09-27 — the one failure is OpenSky's daily quota):
+- **Dashboards**: `/dashboard` (traveller, own trips) and `/ops/dashboard` (fleet) draw the live Neo4j graph (`GET /api/graph`, Cypher shown); remove stops, open trips, operators verify trips.
+- **Reports in words**: travellers type what changed; grammar → LLM → disruption → healed card. Sentinel/forecast weather goes to the operator as an advisory (send with probability + note, or keep internal).
 - **Weather Digital Twin** (HackCelestial task): trip panel (what-if presets + sliders, forecast vs what-if, per-stop risk with drivers and data counts, cascade, social evidence, learned beliefs, MapLibre risk/rain/cascade map) and `/ops/twin` (fleet map, operator workload by hour, displaced-visit hotspots, city conditions + social). Live ICON/GFS ensembles, climatology beyond the horizon, Mastodon/Lemmy/GDELT signals, learning from past trips. Read-only by test.
 - **Destinations**: countries/regions/small states/islands → Wikivoyage-recommended cities (readership + editions), multi-city routes with OSRM transfers, must-sees pinned, keyword interests, English titles; blank/vague destination → verified suggestion cards with last year's weather.
 - **Nugen**: provider wired (`domain: true` tasks), `scripts/nugen-align.mts` works end to end up to Nugen's side — **every alignment and even base-model inference returned HTTP 502 from Nugen on 2026-09-27 03:20 IST** (4 failed projects on the account; our document + benchmark are READY). Re-run `align` → `status` → `deploy` → `eval` when their status page is green, then set `NUGEN_MODEL`.

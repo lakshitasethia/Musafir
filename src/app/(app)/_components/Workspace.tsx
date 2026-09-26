@@ -340,6 +340,21 @@ export function Workspace({ tripId, role, backHref }: { tripId: string; role: Ro
             />}
           </div>
 
+          {role === "traveller" ? (
+            <ReportBox
+              busy={busy}
+              disabled={day.nodes.length === 0}
+              onReport={(text) =>
+                run(async () => {
+                  const now = new Date();
+                  const r = await api<{ understood: string; status: string }>(`/api/trips/${tripId}/days/${activeDayIndex}/report`, {
+                    body: { text, nowMinute: now.getHours() * 60 + now.getMinutes() },
+                  });
+                  flash(`${r.understood} — ${r.status === "AUTO_APPLIED" ? "fixed, undo from the card" : "here's a new plan"}`);
+                })
+              }
+            />
+          ) : (
           <Simulator
             role={role}
             day={day}
@@ -358,6 +373,7 @@ export function Workspace({ tripId, role, backHref }: { tripId: string; role: Ro
               }).catch(() => undefined)
             }
           />
+          )}
 
           {role === "operator" && day.nodes.length > 0 && <WeatherTwin tripId={tripId} dayIndex={activeDayIndex} version={data.trip.version} />}
 
@@ -438,6 +454,43 @@ type DisruptionBody =
   | { kind: "DELAY"; nodeId: string; delayMinutes: number; reason: string }
   | { kind: "CLOSURE"; nodeId: string; reason: string }
   | { kind: "WEATHER"; fromMinute: number; toMinute: number; reason: string };
+
+/** Travellers say what changed in their own words; Musafir turns it into a healed plan. */
+function ReportBox({ busy, disabled, onReport }: { busy: boolean; disabled: boolean; onReport: (text: string) => Promise<unknown> }) {
+  const [text, setText] = useState("");
+  const send = () => {
+    const t = text.trim();
+    if (t.length < 3) return;
+    onReport(t)
+      .then(() => setText(""))
+      .catch(() => undefined);
+  };
+  return (
+    <form
+      className="mz-panel mz-stack mz-simulator mz-report"
+      onSubmit={(e) => {
+        e.preventDefault();
+        send();
+      }}
+    >
+      <span className="mz-label">Something changed?</span>
+      <div className="mz-row">
+        <input
+          className="mz-input"
+          value={text}
+          maxLength={300}
+          disabled={disabled || busy}
+          onChange={(e) => setText(e.target.value)}
+          placeholder={disabled ? "Add stops first" : "“20 min late”, “the fort is closed”, “it's pouring”"}
+          aria-label="Tell Musafir what changed"
+        />
+        <button className="mz-btn mz-btn-sm" disabled={disabled || busy || text.trim().length < 3}>
+          {busy ? "…" : "Fix my day"}
+        </button>
+      </div>
+    </form>
+  );
+}
 
 function Simulator({
   role,

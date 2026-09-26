@@ -8,12 +8,14 @@ import { clearOfflineData } from "./offlineStore";
 
 const OPERATOR_NAV = [
   { href: "/", label: "Home" },
+  { href: "/ops/dashboard", label: "Dashboard" },
   { href: "/ops", label: "Operations" },
   { href: "/ops/twin", label: "Weather twin" },
 ];
 
 const TRAVELLER_NAV = [
   { href: "/", label: "Home" },
+  { href: "/dashboard", label: "Dashboard" },
   { href: "/trip", label: "Trips" },
   { href: "/flights", label: "Flights" },
   { href: "/hotels", label: "Hotels" },

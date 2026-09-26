@@ -73,6 +73,7 @@ function tripRecordRow(rec: TripRecord, activity: ActivityRecord[]): Row {
     autonomyJson: JSON.stringify(rec.autonomy),
     plannerJson: rec.planner ? JSON.stringify(rec.planner) : undefined,
     lastSentinelAt: rec.lastSentinelAt,
+    verifiedJson: rec.verified ? JSON.stringify(rec.verified) : undefined,
     createdAt: rec.createdAt,
     updatedAt: rec.updatedAt,
     activityJson: JSON.stringify(activity),
@@ -107,6 +108,7 @@ async function readAll(tx: ManagedTransaction): Promise<{ db: Db; rev: number }>
         autonomy: JSON.parse(String(t.autonomyJson)),
         planner: t.plannerJson ? JSON.parse(String(t.plannerJson)) : undefined,
         lastSentinelAt: t.lastSentinelAt as string | undefined,
+        verified: t.verifiedJson ? JSON.parse(String(t.verifiedJson)) : undefined,
         createdAt: String(t.createdAt),
         updatedAt: String(t.updatedAt),
       }) as unknown as TripRecord,
@@ -216,4 +218,33 @@ export async function neo4jAdapter(): Promise<StorageAdapter & { close(): Promis
       delete g.__musafirNeo4j;
     },
   };
+}
+
+/** The dashboards' graph query, shown to users as-is so they can see what Neo4j is asked. */
+export const GRAPH_CYPHER = `MATCH (u:User)-[:OWNS]->(t:Trip)
+WHERE $owner IS NULL OR u.id = $owner
+WITH u, t ORDER BY t.updatedAt DESC LIMIT $limit
+OPTIONAL MATCH (t)-[:HAS_DAY]->(d:Day)
+OPTIONAL MATCH (d)-[:HAS_STOP]->(s:Stop)
+OPTIONAL MATCH (s)-[nx:NEXT]->(s2:Stop)
+OPTIONAL MATCH (p:Proposal)-[:FOR]->(t)
+RETURN u {.id, .name, .role, .guest} AS u,
+       t {.id, .destination, .dateStart, .dateEnd, .verifiedJson, .version} AS t,
+       collect(DISTINCT d {.key, .dayIndex, .date}) AS days,
+       collect(DISTINCT s {.id, .title, .category, .isOutdoor, .type, .dayKey, .start}) AS stops,
+       collect(DISTINCT CASE WHEN s2 IS NULL THEN NULL ELSE {from: s.id, to: s2.id, mode: nx.mode, minutes: nx.durationMinutes} END) AS legs,
+       collect(DISTINCT p {.id, .status, .json}) AS proposals`;
+
+/** Read-only: runs GRAPH_CYPHER. The user projection is explicit, so password fields are never read. */
+export async function graphRows(owner: string | null, limit: number): Promise<Row[]> {
+  const d = driver();
+  const session = d.session({ database: dbName(), defaultAccessMode: neo4j.session.READ });
+  try {
+    const res = await session.run(GRAPH_CYPHER, { owner, limit: neo4j.int(limit) });
+    return res.records.map((r) => r.toObject() as Row);
+  } catch (e) {
+    throw explain(e);
+  } finally {
+    await session.close();
+  }
 }

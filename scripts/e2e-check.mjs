@@ -175,9 +175,19 @@ await check("big delay asks the traveller (TRAVELLER card) and applies", async (
   await refresh();
   return travellerCard.options[0].label;
 });
-await check("travellers can't declare rain (forecasts + operator decide)", async () => {
-  const r = await t.req(`/api/trips/${tripId}/days/1/disruptions`, { body: { kind: "WEATHER", fromMinute: 0, toMinute: 1439, reason: "feature check rain" } });
-  expect(r.status === 403, `got ${r.status}`);
+await check("traveller reports rain in plain words → a new plan", async () => {
+  const r = await t.req(`/api/trips/${tripId}/days/1/report`, { body: { text: "it's pouring here, until 6pm", nowMinute: 600 } });
+  expect(r.status === 200 && r.data.proposalId, JSON.stringify(r.data));
+  return `${r.data.understood} (${r.data.via}) → ${r.data.status}`;
+});
+await check("traveller reports a delay in words", async () => {
+  const r = await t.req(`/api/trips/${tripId}/days/1/report`, { body: { text: "stuck in traffic, about 15 minutes late", nowMinute: 540 } });
+  expect(r.status === 200, JSON.stringify(r.data));
+  return `${r.data.understood} → ${r.data.status}`;
+});
+await check("unclear report is refused politely", async () => {
+  const r = await t.req(`/api/trips/${tripId}/days/1/report`, { body: { text: "we had a lovely lunch", nowMinute: 780 } });
+  expect(r.status === 422, `got ${r.status}`);
 });
 let closureId;
 await check("venue closure → Resolver agent finds real alternatives (Groq-ranked)", async () => {
@@ -339,6 +349,21 @@ await check("fleet twin is for operators only", async () => {
   const o2 = await o.req("/api/ops/twin", { body: { scenario: { flood: true } } });
   expect(o2.status === 200 && Array.isArray(o2.data.operatorLoadByHour), JSON.stringify(o2.data).slice(0, 200));
   return `${o2.data.trips.length} active trips simulated`;
+});
+await check("dashboard graph: traveller sees only their own trips, no secrets", async () => {
+  const r = await t.req("/api/graph");
+  expect(r.status === 200 && r.data.nodes.length > 0, JSON.stringify(r.data).slice(0, 200));
+  expect(r.data.nodes.filter((n) => n.label === "User").length === 1, "saw other users");
+  expect(!/passwordHash|salt/.test(JSON.stringify(r.data)), "secret fields in graph");
+  return `${r.data.source}: ${r.data.stats.trips} trips, ${r.data.stats.stops} stops`;
+});
+await check("operator verifies a trip from the dashboard; travellers can't", async () => {
+  expect((await t.req(`/api/trips/${tripId}/verify`, { body: { verified: true } })).status === 403, "traveller verified");
+  const v = await o.req(`/api/trips/${tripId}/verify`, { body: { verified: true } });
+  expect(v.status === 200, JSON.stringify(v.data));
+  const g = await o.req("/api/graph");
+  expect(g.data.nodes.some((n) => n.id === `trip:${tripId}` && n.props.verified === true), "verification not in graph");
+  return `fleet graph: ${g.data.stats.users} travellers, ${g.data.stats.trips} trips`;
 });
 await check("social signals (public posts/news)", async () => {
   const r = await t.req("/api/twin/social?city=Mumbai");

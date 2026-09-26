@@ -36,6 +36,8 @@ export interface TripRecord {
   planner?: { status: "RUNNING" | "DONE" | "FAILED"; note: string; at: string };
   /** Last ambient sentinel run (rate limit). */
   lastSentinelAt?: string;
+  /** An operator checked this trip end to end. */
+  verified?: { by: string; at: string; note?: string };
   createdAt: string;
   updatedAt: string;
 }

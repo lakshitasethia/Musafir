@@ -46,3 +46,19 @@
 .mz-load-col > em { position: absolute; bottom: -16px; left: 0; font: 10px/1 "Founders Grotesk Text", system-ui, sans-serif; font-style: normal; opacity: 0.6; }
 .mz-twin-pin.is-trip { border-radius: 6px; }
 .mz-twin-pin.is-hotspot { background: #b8534f; }
+
+/* Dashboards (graph from Neo4j) — layout only; Lakshita styles in app.css. */
+.mz-dash-tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); }
+.mz-dash-tile { display: flex; flex-direction: column; gap: 4px; padding: 16px; border: 1px solid var(--mz-line, #c2c6ca); border-radius: 12px; }
+.mz-dash { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) 320px; align-items: start; }
+.mz-dash-graph { padding: 0; overflow: hidden; }
+.mz-graph { width: 100%; height: auto; display: block; touch-action: none; background: #fbf8f3; user-select: none; }
+.mz-graph-edge { stroke: #c2c6ca; stroke-width: 1.2; }
+.mz-graph-edge.t-NEXT { stroke: #5e8b72; stroke-dasharray: 4 3; }
+.mz-graph-edge.t-FOR { stroke: #b8534f; }
+.mz-graph-label { font: 10px "Founders Grotesk Text", system-ui, sans-serif; fill: #3d2d20; pointer-events: none; }
+.mz-graph-edge-label { font: 8px "Founders Grotesk Text", system-ui, sans-serif; fill: #5e8b72; pointer-events: none; }
+.mz-dash-legend { padding: 8px 12px; gap: 12px; }
+.mz-dash-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; }
+.mz-cypher { white-space: pre-wrap; margin: 8px 0 0; }
+@media (max-width: 860px) { .mz-dash { grid-template-columns: 1fr; } }
