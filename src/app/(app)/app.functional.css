@@ -27,3 +27,22 @@
 .mz-suggest-card { display: flex; flex-direction: column; gap: 8px; }
 .mz-suggest-card > button { margin-top: auto; align-self: flex-start; }
 .mz-chip[data-avoid] { text-decoration: line-through; opacity: 0.8; }
+
+/* Weather digital twin — layout only; Lakshita styles in app.css. */
+.mz-twin-map { width: 100%; border-radius: 12px; overflow: hidden; border: 1px solid var(--mz-line, #c2c6ca); }
+.mz-twin-sliders { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); }
+.mz-twin-metrics { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); }
+.mz-twin-metric { display: flex; flex-direction: column; gap: 4px; }
+.mz-twin-stop { display: grid; grid-template-columns: minmax(0, 1fr) 90px auto; gap: 12px; align-items: center; }
+.mz-twin-bar { height: 8px; background: rgba(61, 45, 32, 0.1); border-radius: 4px; overflow: hidden; }
+.mz-twin-bar > span { display: block; height: 100%; }
+.mz-twin-pin { min-width: 28px; height: 28px; padding: 0 6px; border-radius: 14px; display: grid; place-items: center; background: var(--pin); color: #fbf8f3; font: 600 12px/1 "Founders Grotesk Text", system-ui, sans-serif; border: 2px solid #fbf8f3; box-shadow: 0 1px 4px rgba(0,0,0,.3); cursor: pointer; }
+.mz-twin-pin[data-locked] { border-color: #3d2d20; }
+.mz-twin-pin.is-social { background: #4b6b94; }
+@media (max-width: 480px) { .mz-twin-stop { grid-template-columns: 1fr; } }
+.mz-load-chart { display: grid; grid-template-columns: repeat(24, 1fr); gap: 2px; height: 120px; align-items: end; }
+.mz-load-col { position: relative; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; }
+.mz-load-col > span { display: block; background: #b8534f; border-radius: 2px 2px 0 0; min-height: 1px; }
+.mz-load-col > em { position: absolute; bottom: -16px; left: 0; font: 10px/1 "Founders Grotesk Text", system-ui, sans-serif; font-style: normal; opacity: 0.6; }
+.mz-twin-pin.is-trip { border-radius: 6px; }
+.mz-twin-pin.is-hotspot { background: #b8534f; }

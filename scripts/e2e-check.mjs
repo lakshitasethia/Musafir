@@ -292,6 +292,32 @@ await check("traveller view hides operator config and names", async () => {
   expect(names.includes("your operator"), "operator actions not labelled");
 });
 
+// ── Weather Digital Twin ───────────────────────────────────────────
+await check("digital twin: forecast vs what-if, and the real trip is untouched", async () => {
+  await refresh();
+  const before = bundle.trip.version;
+  const r = await t.req(`/api/trips/${tripId}/twin`, { body: { scenario: { precipAddMm: 25, durationExtendH: 3 }, dayIndex: 1 } });
+  expect(r.status === 200 && r.data.days.length > 0, JSON.stringify(r.data).slice(0, 200));
+  const d = r.data.days[0];
+  expect(d.baseline.runs > 0 && d.scenario && d.scenario.runs > 0, "no simulated futures");
+  expect(d.scenario.pAnyChange >= d.baseline.pAnyChange, "a heavier storm should not make things better");
+  await refresh();
+  expect(bundle.trip.version === before, "twin changed the real trip");
+  return `${d.weather.basis}; change ${Math.round(d.baseline.pAnyChange * 100)}% → ${Math.round(d.scenario.pAnyChange * 100)}%`;
+});
+await check("fleet twin is for operators only", async () => {
+  const r = await t.req("/api/ops/twin", { body: { scenario: {} } });
+  expect(r.status === 403, `traveller got ${r.status}`);
+  const o2 = await o.req("/api/ops/twin", { body: { scenario: { flood: true } } });
+  expect(o2.status === 200 && Array.isArray(o2.data.operatorLoadByHour), JSON.stringify(o2.data).slice(0, 200));
+  return `${o2.data.trips.length} active trips simulated`;
+});
+await check("social signals (public posts/news)", async () => {
+  const r = await t.req("/api/twin/social?city=Mumbai");
+  expect(r.status === 200 && Array.isArray(r.data.sources), JSON.stringify(r.data).slice(0, 200));
+  return r.data.sources.map((s) => `${s.name}: ${s.status}`).join("; ");
+});
+
 // ── Essentials ─────────────────────────────────────────────────────
 await check("hotels near the trip", async () => {
   const r = await t.req(`/api/hotels?tripId=${tripId}`);

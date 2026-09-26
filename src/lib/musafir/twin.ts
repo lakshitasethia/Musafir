@@ -50,6 +50,8 @@ export interface Scenario {
   gustScale: number;
   /** Flooding: roads slow sharply and outdoor visits behave as in violent rain. */
   flood: boolean;
+  /** A what-if storm (precipAddMm > 0) also breaks at this local hour for 2 h + durationExtendH, on top of any forecast rain. */
+  stormStartHour?: number;
 }
 
 export const BASELINE: Scenario = { precipScale: 1, precipAddMm: 0, durationExtendH: 0, tempOffsetC: 0, gustScale: 1, flood: false };
@@ -129,10 +131,20 @@ export function gustClass(kmh: number | null | undefined): ImpactKey | null {
 }
 
 // ── Counterfactual weather ───────────────────────────────────────────
+export const DEFAULT_STORM_HOUR = 14;
+const STORM_BASE_HOURS = 2;
+
 export function applyScenario(member: WeatherMember, s: Scenario): WeatherMember {
   const rainy = new Set(member.hours.filter((h) => h.precipMm >= 0.2).map((h) => h.hour));
+  // A what-if storm always breaks at the chosen hour (a dry or drizzly forecast would otherwise absorb it).
+  const imposed = new Set<number>();
+  if (s.precipAddMm > 0) {
+    const start = Math.min(23, Math.max(0, Math.round(s.stormStartHour ?? DEFAULT_STORM_HOUR)));
+    for (let k = 0; k < STORM_BASE_HOURS; k++) if (start + k < 24) imposed.add(start + k);
+  }
   const extended = new Set(rainy);
-  for (const h of rainy) for (let k = 1; k <= Math.max(0, Math.round(s.durationExtendH)); k++) extended.add(h + k);
+  for (const h of imposed) extended.add(h);
+  for (const h of [...rainy, ...imposed]) for (let k = 1; k <= Math.max(0, Math.round(s.durationExtendH)); k++) extended.add(h + k);
   const avgRain = rainy.size ? member.hours.filter((h) => rainy.has(h.hour)).reduce((n, h) => n + h.precipMm, 0) / rainy.size : 0;
   return {
     id: member.id,

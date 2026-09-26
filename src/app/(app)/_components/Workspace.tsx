@@ -18,6 +18,7 @@ import { OfflineRegistrar } from "./OfflineRegistrar";
 import { ProposalCard } from "./ProposalCard";
 import { Toast } from "./TopBar";
 import { useLive } from "./useLive";
+import { WeatherTwin } from "./WeatherTwin";
 
 type Role = "traveller" | "operator";
 
@@ -356,6 +357,8 @@ export function Workspace({ tripId, role, backHref }: { tripId: string; role: Ro
               }).catch(() => undefined)
             }
           />
+
+          {day.nodes.length > 0 && <WeatherTwin tripId={tripId} dayIndex={activeDayIndex} version={data.trip.version} />}
 
           {role === "traveller" && day.nodes.length > 0 && <GroupVotePanel tripId={tripId} dayIndex={activeDayIndex} version={data.trip.version} />}
 

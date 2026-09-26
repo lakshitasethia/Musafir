@@ -41,7 +41,7 @@ const save = (s: State) => writeFileSync(STATE, JSON.stringify({ ...state(), ...
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function key(): string {
-  const k = process.env.NUGEN_API_KEY;
+  const k = process.env.NUGEN_API_KEY || process.env.NUGEN_API;
   if (!k) throw new Error("NUGEN_API_KEY is not set in .env.local (sign up at https://nugen.in/signup?invite=PILLAIUNIV2026, then create an API key)");
   return k;
 }

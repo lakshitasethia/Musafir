@@ -26,8 +26,9 @@ interface Provider {
 }
 
 export function nugenProvider(): Provider | null {
-  if (!process.env.NUGEN_API_KEY || !process.env.NUGEN_MODEL) return null;
-  return { id: "nugen", baseUrl: "https://api.nugen.in/api/v3/inference", apiKey: process.env.NUGEN_API_KEY, model: process.env.NUGEN_MODEL, jsonMode: false };
+  const apiKey = process.env.NUGEN_API_KEY || process.env.NUGEN_API;
+  if (!apiKey || !process.env.NUGEN_MODEL) return null;
+  return { id: "nugen", baseUrl: "https://api.nugen.in/api/v3/inference", apiKey, model: process.env.NUGEN_MODEL, jsonMode: false };
 }
 
 function providers(tier: LlmTier, domain = false): Provider[] {

@@ -9,6 +9,7 @@ import { clearOfflineData } from "./offlineStore";
 const OPERATOR_NAV = [
   { href: "/", label: "Home" },
   { href: "/ops", label: "Operations" },
+  { href: "/ops/twin", label: "Weather twin" },
 ];
 
 const TRAVELLER_NAV = [

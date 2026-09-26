@@ -10,5 +10,6 @@ export const ScenarioSchema = z
     tempOffsetC: z.number().min(-15).max(15).default(BASELINE.tempOffsetC),
     gustScale: z.number().min(0).max(4).default(BASELINE.gustScale),
     flood: z.boolean().default(BASELINE.flood),
+    stormStartHour: z.number().int().min(0).max(23).optional(),
   })
   .default(BASELINE);

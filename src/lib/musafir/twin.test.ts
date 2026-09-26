@@ -49,6 +49,13 @@ test("counterfactual scenario: heavier, longer, hotter", () => {
   assert.equal(s.hours[0].apparentC, 30);
 });
 
+test("a what-if storm on a dry day is imposed at the chosen hour", () => {
+  const s = applyScenario(dry, { ...BASELINE, precipAddMm: 20, durationExtendH: 1, stormStartHour: 9 });
+  assert.deepEqual(s.hours.filter((h) => h.precipMm > 0).map((h) => h.hour), [9, 10, 11]);
+  const t = simulateDay(day, [dry], { model: priorModel(), seed: 5, samplesPerMember: 40, scenario: { ...BASELINE, precipAddMm: 20, stormStartHour: 9 } });
+  assert.ok(t.stops.find((x) => x.nodeId === id(1))!.pDisrupted > 0.5, "outdoor 09:00 stop hit by the storm");
+});
+
 test("dry day: nothing happens", () => {
   const t = simulateDay(day, [dry], { model: priorModel(), seed: 1, samplesPerMember: 100 });
   assert.ok(t.stops.every((s) => s.pDisrupted < 0.1));
