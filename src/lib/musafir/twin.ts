@@ -11,13 +11,13 @@
  *     bookings at risk) → classifyRisk (AUTO / TRAVELLER / OPERATOR cards)
  *   → probabilities, expectations and p10/p90 bands with the sample size.
  *
- * Thresholds are cited, not invented: rain-rate classes follow the AMS/WMO
- * intensity classes; heat classes are the NWS heat-index bands already used by
- * the pacing auditor; gust classes are Beaufort 7 and 9. The probabilities
+ * Thresholds are cited, not invented: they are read from Parth's verified
+ * dataset src/data/weather-impact-classes.json (AMS/WMO rain rates, NWS heat
+ * index, Beaufort gusts — each with its source URL). The probabilities
  * attached to each class start as weak priors and are updated from observed
  * outcomes (reported vs quiet visits) — `n` says how much data backs each one.
  */
-import { HEAT_CAUTION_C, HEAT_DANGER_C, HEAT_EXTREME_CAUTION_C } from "./auditors/pacing.ts";
+import CLASSES from "../../data/weather-impact-classes.json" with { type: "json" };
 import { estimateLeg } from "./geo.ts";
 import { heal, type Disruption, type HealingPolicy } from "./reducer.ts";
 import { classifyRisk, DEFAULT_AUTONOMY, type AutonomyPolicy, type RiskTier } from "./risk.ts";
@@ -56,26 +56,44 @@ export interface Scenario {
 
 export const BASELINE: Scenario = { precipScale: 1, precipAddMm: 0, durationExtendH: 0, tempOffsetC: 0, gustScale: 1, flood: false };
 
-// ── Weather classes (cited) ──────────────────────────────────────────
-/** AMS Glossary / WMO rain-rate classes (mm/h). */
+// ── Weather classes (cited, from src/data/weather-impact-classes.json) ──
+// Thresholds are data, not code: Parth's verified dataset with source URLs and
+// quotes (AMS rain rates, NWS heat index, Beaufort). Only the "dry" cut-off is a
+// product choice — the dataset notes there is no cited lower bound for rain.
+const DRY_BELOW_MM = 0.2;
+const cls = <K extends string>(list: { key: string; label: string }[], key: K) => {
+  const c = list.find((x) => x.key === key);
+  if (!c) throw new Error(`weather-impact-classes.json has no class "${key}"`);
+  return c;
+};
+const rainData = CLASSES.rainRate.classes;
+const heatData = CLASSES.heatIndex.classes;
+const windData = CLASSES.wind.classes;
+const rain = (key: "rain:light" | "rain:moderate" | "rain:heavy" | "rain:violent") => {
+  const c = cls(rainData, key) as (typeof rainData)[number];
+  const min = key === "rain:light" ? DRY_BELOW_MM : c.minMmPerHour;
+  return { key, min, label: `${c.label} (${c.maxMmPerHour === null ? `≥ ${min}` : `${min}–${c.maxMmPerHour}`} mm/h)` };
+};
+const heat = (key: "heat:caution" | "heat:extreme" | "heat:danger") => {
+  const c = cls(heatData, key) as (typeof heatData)[number];
+  return { key, min: c.minC, label: `${c.label.toLowerCase()} (feels-like ≥ ${c.minC} °C)` };
+};
+const gust = (key: "gust:gale" | "gust:strong") => {
+  const c = cls(windData, key) as (typeof windData)[number];
+  return { key, min: c.minKmh, label: `${c.label.toLowerCase()} gusts (≥ ${c.minKmh} km/h)` };
+};
+
 export const RAIN_CLASSES = [
-  { key: "rain:none", min: 0, label: "dry (< 0.2 mm/h)" },
-  { key: "rain:light", min: 0.2, label: "light (< 2.5 mm/h)" },
-  { key: "rain:moderate", min: 2.5, label: "moderate (2.5–7.6 mm/h)" },
-  { key: "rain:heavy", min: 7.6, label: "heavy (7.6–50 mm/h)" },
-  { key: "rain:violent", min: 50, label: "violent (≥ 50 mm/h)" },
+  { key: "rain:none" as const, min: 0, label: `dry (< ${DRY_BELOW_MM} mm/h)` },
+  rain("rain:light"),
+  rain("rain:moderate"),
+  rain("rain:heavy"),
+  rain("rain:violent"),
 ] as const;
-/** NWS heat-index bands (apparent temperature), shared with auditors/pacing.ts. */
-export const HEAT_CLASSES = [
-  { key: "heat:caution", min: HEAT_CAUTION_C, label: `caution (≥ ${Math.round(HEAT_CAUTION_C)}°C feels-like)` },
-  { key: "heat:extreme", min: HEAT_EXTREME_CAUTION_C, label: `extreme caution (≥ ${Math.round(HEAT_EXTREME_CAUTION_C)}°C)` },
-  { key: "heat:danger", min: HEAT_DANGER_C, label: `danger (≥ ${Math.round(HEAT_DANGER_C)}°C)` },
-] as const;
-/** Beaufort 7 (near gale) and 9 (strong gale) gusts, km/h. */
-export const GUST_CLASSES = [
-  { key: "gust:gale", min: 50, label: "near gale gusts (≥ 50 km/h)" },
-  { key: "gust:strong", min: 75, label: "strong gale gusts (≥ 75 km/h)" },
-] as const;
+/** NWS heat-index bands (apparent temperature); "extreme danger" folds into danger (same outdoor behaviour). */
+export const HEAT_CLASSES = [heat("heat:caution"), heat("heat:extreme"), heat("heat:danger")] as const;
+/** Beaufort 7 (near gale / "gale" key) and 9 (strong gale) gusts. */
+export const GUST_CLASSES = [gust("gust:gale"), gust("gust:strong")] as const;
 
 export type ImpactKey = (typeof RAIN_CLASSES)[number]["key"] | (typeof HEAT_CLASSES)[number]["key"] | (typeof GUST_CLASSES)[number]["key"];
 
