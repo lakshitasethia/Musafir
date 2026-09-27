@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import { FooterSection } from "../components/FooterSection";
 import { GridSvg } from "../components/GridSvg";
 import { SiteNav } from "../components/SiteNav";
+import { WhatsAppHelp } from "../(app)/_components/WhatsAppHelp";
+import "../(app)/app.functional.css"; // .mz-wa-help button styles
+import { getSessionUser } from "@/server/auth.ts";
+import { whatsappContact } from "@/server/whatsapp.ts";
 
 export const metadata: Metadata = {
   title: "Subscription | Musafir",
@@ -91,6 +95,9 @@ const CHECKOUT_BANNER: Record<string, { tone: "ok" | "info" | "warn"; text: stri
 export default async function SubscriptionPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const status = (await searchParams).checkout;
   const banner = typeof status === "string" ? CHECKOUT_BANNER[status] : undefined;
+  // Travellers get the WhatsApp on-ground help button here too (every page but home).
+  const user = await getSessionUser().catch(() => null);
+  const wa = user?.role === "traveller" ? await whatsappContact() : null;
   return (
     <div className="page-wrapper subscription_page">
       <SiteNav current="subscription" />
@@ -164,6 +171,7 @@ export default async function SubscriptionPage({ searchParams }: { searchParams:
       </main>
 
       <FooterSection />
+      {wa && <WhatsAppHelp number={wa.number} name={wa.name} />}
     </div>
   );
 }
