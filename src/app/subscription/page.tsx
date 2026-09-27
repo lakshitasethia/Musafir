@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { FooterSection } from "../components/FooterSection";
 import { GridSvg } from "../components/GridSvg";
+import { SiteNav } from "../components/SiteNav";
 
 export const metadata: Metadata = {
   title: "Subscription | Musafir",
@@ -93,43 +93,7 @@ export default async function SubscriptionPage({ searchParams }: { searchParams:
   const banner = typeof status === "string" ? CHECKOUT_BANNER[status] : undefined;
   return (
     <div className="page-wrapper subscription_page">
-      <header className="nav_component" style={{ color: "#3d2d20" }}>
-        <div className="padding-global">
-          <div className="nav_container">
-            <nav className="nav_menu" role="navigation">
-              <div className="nav_menu-content">
-                {/* Plain <a>: a full page load lets the guest-session redirect set its cookie. */}
-                {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-                <a href="/trip" className="nav_menu_link">
-                  PLAN
-                </a>
-                <a href="/flights" className="nav_menu_link">
-                  FLIGHTS
-                </a>
-                <a href="/hotels" className="nav_menu_link">
-                  HOTELS
-                </a>
-                <a href="/packages" className="nav_menu_link">
-                  PACKAGES
-                </a>
-              </div>
-            </nav>
-            <Link href="/" className="nav_brand" aria-label="Musafir home">
-              <div className="nav_logo">
-                <span className="nav_wordmark">Musafir</span>
-              </div>
-            </Link>
-            <div className="nav_contact-wrp">
-              <a href="/login" className="button is-secondary is-nav" style={{ borderColor: "#3d2d20", color: "#3d2d20", marginRight: "0.5rem" }}>
-                LOG IN
-              </a>
-              <Link href="/subscription" className="button is-secondary is-nav is-current" aria-current="page">
-                SUBSCRIPTION
-              </Link>
-            </div>
-          </div>
-        </div>
-      </header>
+      <SiteNav current="subscription" />
 
       <main className="section_subscription">
         <div className="subscription_grid" aria-hidden="true">

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import React, { useEffect, useRef, useState } from "react";
 import Lenis from "lenis";
 import gsap from "gsap";
@@ -12,9 +11,15 @@ import { TransitionGridSvg } from "./components/TransitionGridSvg";
 import { JourneySection } from "./components/JourneySection";
 import { TestimonialsSection } from "./components/TestimonialsSection";
 import { FooterSection } from "./components/FooterSection";
+import { SiteNav } from "./components/SiteNav";
 
 // Resting width of the Asia cutout, matched by .hero_mask-inner in globals.css.
 const HERO_MASK_REST_VW = 145;
+// Phones are tall and narrow: start larger so Asia fills the screen behind the
+// heading, and open proportionally further (desktop 145 → 750).
+const HERO_MASK_REST_VW_PHONE = 380;
+const HERO_MASK_END_VW = 750;
+const HERO_MASK_END_VW_PHONE = 1960;
 
 export default function MusafirExperience() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -60,7 +65,10 @@ export default function MusafirExperience() {
       // Hero mask zoom (Webflow a-8: 0 -> 35% of the 100vh scroll range)
       const maskProgress = Math.min(Math.max(scrollY / (viewportHeight * 0.35), 0), 1);
       // Rests at 145vw so Asia fills the first view, then zooms to 750vw.
-      const maskWidth = HERO_MASK_REST_VW + maskProgress * (750 - HERO_MASK_REST_VW);
+      const phone = window.innerWidth < 768;
+      const rest = phone ? HERO_MASK_REST_VW_PHONE : HERO_MASK_REST_VW;
+      const end = phone ? HERO_MASK_END_VW_PHONE : HERO_MASK_END_VW;
+      const maskWidth = rest + maskProgress * (end - rest);
       const bgScale = 1.2 - maskProgress * 0.2; // 1.2 -> 1.0
       const heroInView = scrollY < viewportHeight * 2;
 
@@ -134,69 +142,7 @@ export default function MusafirExperience() {
   return (
     <div className="page-wrapper">
       {/* 1. TOP NAVIGATION */}
-      <header
-        className="nav_component"
-        style={{
-          color: isDarkNav ? "#ffffff" : "#3d2d20",
-        }}
-      >
-        <div className="padding-global">
-          <div className="nav_container">
-            {/* Left Nav Menu */}
-            <nav className="nav_menu" role="navigation">
-              <div className="nav_menu-content">
-                {/* Product entry points: all work without login — a guest session starts on arrival.
-                    Plain <a> on purpose: a full page load lets the guest-session redirect set its cookie. */}
-                {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-                <a href="/trip" className="nav_menu_link">
-                  PLAN
-                </a>
-                <a href="/flights" className="nav_menu_link">
-                  FLIGHTS
-                </a>
-                <a href="/hotels" className="nav_menu_link">
-                  HOTELS
-                </a>
-                <a href="/packages" className="nav_menu_link">
-                  PACKAGES
-                </a>
-              </div>
-            </nav>
-
-            {/* Center Brand Logo */}
-            <Link href="/" className="nav_brand" aria-label="Musafir home">
-              <div className="nav_logo">
-                <span className="nav_wordmark">Musafir</span>
-              </div>
-            </Link>
-
-            {/* Right Contact Button */}
-            <div className="nav_contact-wrp">
-              <a
-                href="/login"
-                className="button is-secondary is-nav"
-                style={{
-                  borderColor: isDarkNav ? "#ffffff" : "#3d2d20",
-                  color: isDarkNav ? "#ffffff" : "#3d2d20",
-                  marginRight: "0.5rem",
-                }}
-              >
-                LOG IN
-              </a>
-              <Link
-                href="/subscription"
-                className="button is-secondary is-nav"
-                style={{
-                  borderColor: isDarkNav ? "#ffffff" : "#3d2d20",
-                  color: isDarkNav ? "#ffffff" : "#3d2d20",
-                }}
-              >
-                SUBSCRIPTION
-              </Link>
-            </div>
-          </div>
-        </div>
-      </header>
+      <SiteNav dark={isDarkNav} />
 
       {/* 2. SECTION HERO (200vh STICKY SCROLL WITH ORGANIC CUTOUT MASK) */}
       <main className="section_hero" ref={containerRef}>

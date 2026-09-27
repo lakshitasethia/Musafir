@@ -2419,3 +2419,61 @@ section[aria-label="Itinerary graph"] > .mz-panel.mz-simulator.mz-report::after 
 .mz-card > .mz-h3 {
   overflow-wrap: anywhere;
 }
+
+/* ── Phones: nothing may widen a column past the screen ─────────────────
+   Grid children default to min-width:auto, so a wide row (date inputs, the
+   package cards, chip rows) stretched the whole column off-screen. */
+.mz-stack > *,
+.mz-grid-2 > *,
+.mz-grid-3 > * {
+  min-width: 0;
+}
+
+.mz-input[type="date"],
+.mz-input[type="time"] {
+  min-width: 0;
+}
+
+@media (max-width: 767px) {
+  /* Packages: one card per row, full width, text back to readable sizes */
+  .mz-packages {
+    padding: 32px 16px 48px;
+  }
+
+  .mz-pkg-grid {
+    flex-wrap: wrap;
+    gap: 18px;
+  }
+
+  .mz-pkg {
+    flex: 1 1 100%;
+  }
+
+  .mz-pkg-title {
+    font-size: 1.9rem;
+  }
+
+  .mz-pkg-blurb {
+    font-size: 0.95rem;
+  }
+
+  .mz-pkg-meta,
+  .mz-pkg-tag,
+  .mz-pkg-chip {
+    font-size: 0.7rem;
+  }
+
+  .mz-pkg-foot-value {
+    font-size: 0.95rem;
+  }
+
+  .mz-pkg-plan {
+    min-height: 44px;
+    font-size: 0.78rem;
+  }
+
+  /* Section headings (Packages, Flights, Hotels) fit a phone */
+  .mz-section-head .mz-h1 {
+    font-size: clamp(2.2rem, 10vw, 3rem);
+  }
+}

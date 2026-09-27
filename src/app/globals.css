@@ -2101,3 +2101,241 @@ button.plan_cta {
   background: rgba(229, 169, 106, 0.14);
   color: #6b4318;
 }
+
+/* ==========================================================================
+   PHONES (≤767px): landing + subscription. Desktop is untouched above.
+   ========================================================================== */
+.nav_toggle,
+.nav_mobile-panel {
+  display: none;
+}
+
+@media screen and (max-width: 767px) {
+  /* ── Nav: wordmark + Menu; a frosted bar so page content never runs under it */
+  .nav_component {
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+    background-color: rgba(251, 248, 243, 0.88);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(61, 45, 32, 0.1);
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  .nav_component.is-dark {
+    background-color: rgba(20, 16, 14, 0.35);
+    border-bottom-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .nav_container {
+    grid-template-columns: 1fr auto;
+  }
+
+  .nav_menu,
+  .nav_contact-wrp {
+    display: none;
+  }
+
+  .nav_brand {
+    justify-content: flex-start;
+    color: inherit; /* follow the bar: white over photos, umber on paper */
+  }
+
+  .nav_wordmark {
+    font-size: 1.15rem;
+  }
+
+  .nav_toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    min-width: 76px;
+    padding: 0 1rem;
+    border: 1px solid currentColor;
+    border-radius: 100rem;
+    background: transparent;
+    font-family: 'Founders Grotesk Text', Arial, sans-serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+
+  .nav_mobile-panel:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-top: 0.75rem;
+    padding: 0.5rem 1.5rem 1.25rem;
+    border-top: 1px solid rgba(61, 45, 32, 0.12);
+    pointer-events: auto;
+    animation: navPanelIn 0.25s ease-out;
+  }
+
+  .nav_mobile-panel > a {
+    display: flex;
+    align-items: center;
+    min-height: 52px;
+    border-bottom: 1px solid rgba(61, 45, 32, 0.1);
+    font-family: Apris, 'Times New Roman', serif;
+    font-size: 1.6rem;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--dark-umber-500);
+  }
+
+  .nav_mobile-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-top: 1rem;
+  }
+
+  .nav_mobile-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+    border: 1px solid var(--dark-umber-500);
+    border-radius: 100rem;
+    font-size: 0.8rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--dark-umber-500);
+  }
+
+  .nav_mobile-btn.is-solid {
+    background: var(--dark-umber-500);
+    color: var(--ivory-300);
+  }
+
+  @keyframes navPanelIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  /* ── Hero: Asia starts at 380vw here (page.tsx), so it fills the screen */
+  .hero_mask-inner {
+    width: 380vw;
+  }
+
+  .hero_scrollable-top {
+    max-width: 22rem;
+  }
+
+  /* ── "Travel designed around you" */
+  .section_home-transition .heading-style-h1 {
+    font-size: 2.5rem;
+  }
+
+  /* ── Solo / group travel cards: text stacks under the heading */
+  .travel_grid-item {
+    aspect-ratio: 4 / 5;
+  }
+
+  .travel_grid-item-bottom {
+    padding: 3rem 1.25rem 2.5rem;
+    gap: 1rem;
+  }
+
+  .travel_grid-item-bottom-line {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .travel_grid-item-bottom-line h3 {
+    font-size: 2.4rem;
+  }
+
+  .travel_grid-item-bottom-text {
+    width: auto;
+    font-size: 1rem;
+  }
+
+  /* ── How we support every journey: cards stack, the route winds behind them */
+  .section_journey .container-max {
+    position: relative;
+  }
+
+  .section_journey .heading-style-h2,
+  .stories_sticky .heading-style-h2,
+  .section_testimonials .heading-style-h2 {
+    font-size: 2.4rem;
+  }
+
+  .journey_path {
+    position: absolute;
+    top: 9rem;
+    bottom: 0;
+    left: -20%;
+    width: 140%;
+    margin: 0;
+    pointer-events: none;
+  }
+
+  .journey_path svg {
+    height: 100%;
+  }
+
+  .journey_item,
+  .journey_item.is-1,
+  .journey_item.is-2,
+  .journey_item.is-3,
+  .journey_item.is-4 {
+    position: relative;
+    inset: auto;
+    width: 78%;
+    margin-top: 3rem;
+  }
+
+  .journey_item.is-1,
+  .journey_item.is-3 {
+    margin-left: auto;
+  }
+
+  .journey_item.is-2,
+  .journey_item.is-4 {
+    margin-right: auto;
+  }
+
+  .journey_item.is-4 {
+    margin-bottom: 4rem;
+  }
+
+  .journey_item-content {
+    gap: 0.5rem;
+    padding: 0.75rem 0.9rem;
+    background: rgba(251, 248, 243, 0.92);
+  }
+
+  .journey_item-number {
+    right: -0.75rem;
+    top: -0.9rem;
+  }
+
+  /* ── Testimonials: less empty sky under the stories */
+  .stories_tail {
+    padding-bottom: 14vw;
+  }
+
+  .testimonials_bg-img {
+    height: 80vw;
+    object-fit: cover;
+    object-position: center bottom;
+  }
+
+  /* ── Subscription */
+  .plan_card {
+    padding: 2rem 1.5rem 1.75rem;
+  }
+
+  .plan_name {
+    font-size: 1.6rem;
+    white-space: normal;
+  }
+
+  .plan_amount {
+    font-size: 3rem;
+  }
+}
