@@ -48,10 +48,14 @@ async function ensureSchema(d: Driver) {
   g.__musafirNeo4j!.schema ??= (async () => {
     const session = d.session({ database: dbName() });
     try {
+      // One lookup instead of 8 schema round trips on every cold start (~0.8 s → ~0.08 s on Aura);
+      // a unique constraint's backing index carries the constraint's name, so one listing covers both.
+      const existing = new Set((await session.run("SHOW INDEXES YIELD name")).records.map((r) => String(r.get("name"))));
       for (const [label, key] of [["User", "id"], ["Trip", "id"], ["Day", "key"], ["Stop", "id"], ["Proposal", "id"], ["Room", "id"], ["Meta", "id"]]) {
-        await session.run(`CREATE CONSTRAINT musafir_${label.toLowerCase()}_${key} IF NOT EXISTS FOR (n:${label}) REQUIRE n.${key} IS UNIQUE`);
+        const name = `musafir_${label.toLowerCase()}_${key}`;
+        if (!existing.has(name)) await session.run(`CREATE CONSTRAINT ${name} IF NOT EXISTS FOR (n:${label}) REQUIRE n.${key} IS UNIQUE`);
       }
-      await session.run("CREATE INDEX musafir_room_token IF NOT EXISTS FOR (n:Room) ON (n.token)");
+      if (!existing.has("musafir_room_token")) await session.run("CREATE INDEX musafir_room_token IF NOT EXISTS FOR (n:Room) ON (n.token)");
     } finally {
       await session.close();
     }

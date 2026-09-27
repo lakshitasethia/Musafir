@@ -121,6 +121,7 @@ export async function llmJson<T>(opts: {
         failures.push(`${p.id} returned JSON that failed validation`);
         continue;
       }
+      if (failures.length) console.warn(`[llm] answered by ${p.id} after: ${failures.join("; ")}`);
       return { ok: true, value: parsed.data, via: `${p.id}/${p.model}`, ms: Date.now() - started };
     } catch (e) {
       failures.push(`${p.id} ${(e as Error).name === "AbortError" ? "timed out" : (e as Error).message}`);
@@ -131,18 +132,21 @@ export async function llmJson<T>(opts: {
   return { ok: false, reason: failures.join("; ") };
 }
 
-/** JSON from a model reply: whole text, else the first {...} block (for providers without JSON mode). */
+/**
+ * JSON from a model reply: whole text, else the first {...} block (for providers without JSON mode).
+ * Unparseable → the raw text, so a schema that preprocesses can salvage it (plain schemas still reject a string).
+ */
 function parseJsonLoose(text: string): unknown {
   try {
     return JSON.parse(text);
   } catch {
     const start = text.indexOf("{");
     const end = text.lastIndexOf("}");
-    if (start === -1 || end <= start) return null;
+    if (start === -1 || end <= start) return text;
     try {
       return JSON.parse(text.slice(start, end + 1));
     } catch {
-      return null;
+      return text;
     }
   }
 }

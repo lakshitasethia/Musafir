@@ -41,13 +41,21 @@ export default function MusafirExperience() {
     //    both means ScrollTrigger (the journey route draw) updates in the same
     //    frame the page moves, instead of trailing it by a frame.
     const lenis = new Lenis({
-      lerp: 0.08,
+      // 0.08 trailed the wheel noticeably; 0.12 still glides but follows the hand.
+      lerp: 0.12,
       smoothWheel: true,
     });
     lenis.on("scroll", ScrollTrigger.update);
     gsap.ticker.lagSmoothing(0);
 
     let lastNavTheme: "light" | "dark" = "light";
+    // Nothing below changes unless the page scrolled or the window resized, so
+    // idle frames skip the layout reads and style writes entirely.
+    let lastKey = "";
+    const invalidate = () => {
+      lastKey = "";
+    };
+    window.addEventListener("load", invalidate);
 
     // 2. Per-frame effects. All layout reads happen first, then all writes, so
     //    the browser lays the page out once per frame instead of three times.
@@ -57,6 +65,9 @@ export default function MusafirExperience() {
       // ---- reads ----
       const scrollY = window.scrollY;
       const viewportHeight = window.innerHeight;
+      const key = `${scrollY}|${viewportHeight}|${window.innerWidth}`;
+      if (key === lastKey) return;
+      lastKey = key;
       const transitionRect = homeTransitionSectionRef.current?.getBoundingClientRect();
       const travelRect = travelSectionRef.current?.getBoundingClientRect();
       const journeyTop = journeySectionRef.current?.getBoundingClientRect().top;
@@ -76,7 +87,9 @@ export default function MusafirExperience() {
       if (heroInView) {
         const maskInner = maskInnerRef.current;
         if (maskInner) {
-          maskInner.style.width = `${maskWidth}vw`;
+          // Scaled, not resized: same picture (the cutout stays centred) without a
+          // layout pass and full-width repaint on every frame.
+          maskInner.style.transform = `scale(${maskWidth / rest})`;
           if (maskProgress >= 0.95) {
             maskInner.style.opacity = "0";
             maskInner.style.display = "none";
@@ -133,6 +146,7 @@ export default function MusafirExperience() {
 
     return () => {
       gsap.ticker.remove(update);
+      window.removeEventListener("load", invalidate);
       lenis.destroy();
     };
   }, []);

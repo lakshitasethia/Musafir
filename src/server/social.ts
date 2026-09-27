@@ -9,11 +9,11 @@
  * synthesised: a source that is down or silent is reported as such.
  */
 import { z } from "zod";
+import { HAZARDS, readClassifyReply, type Hazard } from "./hazards.ts";
 import { llmJson } from "./llm.ts";
 import { fetchJson, USER_AGENT } from "./osm.ts";
 
-export const HAZARDS = ["rain", "flood", "storm", "heat", "wind", "closure", "traffic", "none"] as const;
-export type Hazard = (typeof HAZARDS)[number];
+export { HAZARDS, type Hazard };
 
 export interface Signal {
   source: "mastodon" | "lemmy" | "gdelt";
@@ -124,16 +124,30 @@ export function keywordHazard(text: string): { hazard: Hazard; severity: number 
   return { hazard, severity: hazard === "none" ? 0 : severe ? 0.85 : 0.45 };
 }
 
-const ClassifySchema = z.object({
-  posts: z.array(z.object({ i: z.number().int().min(0), hazard: z.enum(HAZARDS), severity: z.number().min(0).max(1) })),
-});
+// The Nugen-aligned model replies in its own shapes ({"0":{…}}, "Flooding", "Moderate"): read them into this one.
+const ClassifySchema = z.preprocess(
+  (reply) => readClassifyReply(reply) ?? reply,
+  z.object({
+    posts: z.array(z.object({ i: z.number().int().min(0), hazard: z.enum(HAZARDS), severity: z.number().min(0).max(1) })),
+  }),
+);
+
+// The Nugen-aligned model slows sharply with batch size (8 posts ~4.5 s, 20 posts > 40 s), so posts go in parallel batches.
+const CLASSIFY_BATCH = 8;
 
 async function classify(raw: Raw[], city: string): Promise<{ signals: Signal[]; by: string }> {
   if (raw.length === 0) return { signals: [], by: "—" };
+  const batches: Raw[][] = [];
+  for (let s = 0; s < raw.length; s += CLASSIFY_BATCH) batches.push(raw.slice(s, s + CLASSIFY_BATCH));
+  const results = await Promise.all(batches.map((b) => classifyBatch(b, city)));
+  return { signals: results.flatMap((r) => r.signals), by: [...new Set(results.map((r) => r.by))].join(" + ") };
+}
+
+async function classifyBatch(raw: Raw[], city: string): Promise<{ signals: Signal[]; by: string }> {
   const r = await llmJson({
     tier: "fast",
     domain: true,
-    timeoutMs: 12_000,
+    timeoutMs: 15_000,
     schema: ClassifySchema,
     system:
       `You read public posts and news about travel conditions in ${city}. For each post, decide the weather-related hazard it reports for travellers ` +

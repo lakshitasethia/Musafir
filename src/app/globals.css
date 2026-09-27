@@ -362,7 +362,8 @@ a {
   align-items: center;
   perspective-origin: 50%;
   transform-origin: 50%;
-  will-change: width, opacity;
+  /* page.tsx zooms it with transform: scale (no will-change: transform, which would blur the coastline) */
+  will-change: opacity;
   transition: opacity 0.15s ease-out;
 }
 

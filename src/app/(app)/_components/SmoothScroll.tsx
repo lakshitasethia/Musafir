@@ -38,7 +38,7 @@ export function SmoothScroll() {
       const gsap = gsapModule.default;
       gsap.registerPlugin(ScrollTrigger);
 
-      const lenis = new Lenis({ lerp: 0.1, smoothWheel: true });
+      const lenis = new Lenis({ lerp: 0.14, smoothWheel: true });
       lenis.on("scroll", ScrollTrigger.update);
       const tick = (time: number) => lenis.raf(time * 1000);
       gsap.ticker.add(tick);
@@ -51,13 +51,21 @@ export function SmoothScroll() {
       const finishReveals = () => revealing.forEach((t) => t.progress(1));
       const onVisibility = () => document.visibilityState === "hidden" && finishReveals();
       document.addEventListener("visibilitychange", onVisibility);
+      // Remeasuring every trigger is a full layout pass: done once things settle, never per DOM change.
+      let refreshTimer = 0;
+      const scheduleRefresh = () => {
+        clearTimeout(refreshTimer);
+        refreshTimer = window.setTimeout(() => ScrollTrigger.refresh(), 250);
+      };
       const reveal = () => {
+        let added = false;
         const fresh = gsap.utils
           .toArray<HTMLElement>(REVEAL)
           .filter((el) => !seen.has(el) && !el.closest("[data-no-reveal]") && !el.closest(".mz-ribbon-track, .mz-sheet"));
         if (fresh.length && document.visibilityState === "hidden") {
           fresh.forEach((el) => seen.add(el)); // shown as-is: no frames to animate with
         } else if (fresh.length) {
+          added = true;
           fresh.forEach((el) => {
             seen.add(el);
             gsap.set(el, { autoAlpha: 0, y: 28 });
@@ -86,17 +94,35 @@ export function SmoothScroll() {
         gsap.utils.toArray<HTMLElement>(PARALLAX).forEach((el) => {
           if (seen.has(el)) return;
           seen.add(el);
+          added = true;
           const t = gsap.fromTo(el, { yPercent: 0 }, { yPercent: -18, ease: "none", scrollTrigger: { trigger: el, start: "top 30%", end: "bottom top", scrub: true } });
           if (t.scrollTrigger) triggers.push(t.scrollTrigger);
         });
-        ScrollTrigger.refresh();
+        if (added) scheduleRefresh();
       };
 
       reveal();
       let pending = 0;
-      const observer = new MutationObserver(() => {
-        cancelAnimationFrame(pending);
-        pending = requestAnimationFrame(reveal);
+      // Maps, live timers and typing change the DOM constantly: only additions of
+      // revealable blocks rescan; other structural changes just remeasure (debounced).
+      const WATCH = `${REVEAL},${PARALLAX}`;
+      const inMap = (n: Node) => (n instanceof Element ? n : n.parentElement)?.closest(".maplibregl-map, canvas, [data-no-reveal]");
+      const observer = new MutationObserver((records) => {
+        let rescan = false;
+        let relayout = false;
+        for (const r of records) {
+          if (inMap(r.target)) continue;
+          for (const n of r.addedNodes) {
+            if (!(n instanceof Element)) continue;
+            relayout = true;
+            if (n.matches(WATCH) || n.querySelector(WATCH)) rescan = true;
+          }
+          if (r.removedNodes.length) relayout = true;
+        }
+        if (rescan) {
+          cancelAnimationFrame(pending);
+          pending = requestAnimationFrame(reveal);
+        } else if (relayout) scheduleRefresh();
       });
       observer.observe(document.body, { childList: true, subtree: true });
 
@@ -105,6 +131,7 @@ export function SmoothScroll() {
         finishReveals();
         observer.disconnect();
         cancelAnimationFrame(pending);
+        clearTimeout(refreshTimer);
         triggers.forEach((t) => t.kill());
         gsap.ticker.remove(tick);
         lenis.destroy();
