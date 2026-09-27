@@ -1,7 +1,7 @@
 /**
- * Live flight status from The OpenSky Network (free, anonymous). Anonymous
- * limits (checked 2026-09-26): only current state vectors, 10 s resolution,
- * 400 credits/day; a global /states/all costs 4 credits. So the global snapshot
+ * Live flight status from The OpenSky Network (free). Anonymous: 400 credits/day;
+ * with an API client (OPENSKY_CLIENT_ID / OPENSKY_CLIENT_SECRET, OAuth2 client
+ * credentials — checked 2026-09-27) 4,000/day. A global /states/all costs 4 credits. So the global snapshot
  * is cached for 60 s and shared by every lookup. We never sell or invent fares:
  * booking is a hand-off to a search engine.
  */
@@ -15,14 +15,47 @@ interface Snapshot {
 const g = globalThis as typeof globalThis & { __musafirOpenSky?: { snap: Snapshot | null; inflight: Promise<Snapshot> | null } };
 const state = (g.__musafirOpenSky ??= { snap: null, inflight: null });
 
+const TOKEN_URL = "https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token";
+const auth = ((globalThis as typeof globalThis & { __musafirOpenSkyAuth?: { token: string; exp: number } | null }).__musafirOpenSkyAuth ??= null);
+let token: { token: string; exp: number } | null = auth;
+
+/** Bearer token for a registered API client (tokens last 30 min); null → anonymous access. */
+async function bearer(force = false): Promise<string | null> {
+  const id = process.env.OPENSKY_CLIENT_ID;
+  const secret = process.env.OPENSKY_CLIENT_SECRET;
+  if (!id || !secret) return null;
+  if (!force && token && Date.now() < token.exp) return token.token;
+  const res = await fetch(TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "client_credentials", client_id: id, client_secret: secret }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) throw new Error(`OpenSky login failed (HTTP ${res.status}) — check OPENSKY_CLIENT_ID / OPENSKY_CLIENT_SECRET`);
+  const b = (await res.json()) as { access_token: string; expires_in?: number };
+  token = { token: b.access_token, exp: Date.now() + Math.max(60, (b.expires_in ?? 1800) - 60) * 1000 };
+  (globalThis as typeof globalThis & { __musafirOpenSkyAuth?: { token: string; exp: number } | null }).__musafirOpenSkyAuth = token;
+  return token.token;
+}
+
+async function fetchStates(signal: AbortSignal): Promise<Response> {
+  const t = await bearer();
+  const get = (tok: string | null) => fetch("https://opensky-network.org/api/states/all", { signal, headers: tok ? { Authorization: `Bearer ${tok}` } : {} });
+  const res = await get(t);
+  // An expired token answers 401: log in again once.
+  return res.status === 401 && t ? get(await bearer(true)) : res;
+}
+
 async function snapshot(): Promise<Snapshot> {
   if (state.snap && Date.now() - state.snap.at < SNAPSHOT_TTL_MS) return state.snap;
   state.inflight ??= (async () => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15_000);
     try {
-      const res = await fetch("https://opensky-network.org/api/states/all", { signal: controller.signal });
-      if (res.status === 429) throw new Error("OpenSky's free daily limit is used up — try again later");
+      const res = await fetchStates(controller.signal);
+      if (res.status === 429) {
+        throw new Error(process.env.OPENSKY_CLIENT_ID ? "OpenSky's daily limit for this API client is used up — try again later" : "OpenSky's free daily limit is used up — add an OpenSky API client (OPENSKY_CLIENT_ID/SECRET) for 10× more");
+      }
       if (!res.ok) throw new Error(`OpenSky HTTP ${res.status}`);
       const body = (await res.json()) as { time: number; states: unknown[][] | null };
       state.snap = { at: Date.now(), time: body.time, states: body.states ?? [] };
