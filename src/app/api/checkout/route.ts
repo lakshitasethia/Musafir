@@ -10,7 +10,7 @@
 import { NextResponse } from "next/server";
 
 const PLANS = {
-  plus: { name: "Musafir Sentinel Plus", description: "One trip, watched and healed", amountPaise: 249900 },
+  plus: { name: "Musafir Plus", description: "One trip, watched and healed", amountPaise: 249900 },
   studio: { name: "Operator Studio", description: "One trip, run from the operator back office", amountPaise: 1699900 },
 } as const;
 type PlanId = keyof typeof PLANS;

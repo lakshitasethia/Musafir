@@ -39,7 +39,7 @@ const PLANS: Plan[] = [
   },
   {
     audience: "For frequent travellers",
-    name: "Musafir Sentinel Plus",
+    name: "Musafir Plus",
     line: "Musafir watches every trip and fixes the day before you notice.",
     price: "₹2,499",
     per: "per trip",
