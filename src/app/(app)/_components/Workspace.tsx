@@ -198,9 +198,15 @@ export function Workspace({ tripId, role, backHref }: { tripId: string; role: Ro
         </p>
       )}
       <div className="mz-page-head">
-        <Link href={backHref} className="mz-label" style={{ textDecoration: "none" }}>
-          ← All trips
-        </Link>
+        <div className="mz-spread">
+          <Link href={backHref} className="mz-label" style={{ textDecoration: "none" }}>
+            ← All trips
+          </Link>
+          {/* Printable itinerary (map, day by day, activity) → the browser's Save as PDF */}
+          <a className="mz-btn mz-btn-ghost mz-btn-sm mz-pdf-btn" href={`/trip/${tripId}/print?auto=1`} target="_blank" rel="noopener">
+            Download PDF
+          </a>
+        </div>
         <div className="mz-spread">
           <h1 className="mz-display mz-h1">{data.trip.destination}</h1>
           <span className={`mz-live${live ? " is-on" : ""}`}>
