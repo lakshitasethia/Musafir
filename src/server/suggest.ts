@@ -220,12 +220,13 @@ export async function suggestDestinations(
       async (idea): Promise<SuggestionCard | null> => {
         const d = await resolveDestination(idea.name);
         if (!d || d.scale === "continent") return null;
-        const pos =
-          d.lat !== undefined && d.lng !== undefined
+        // Weather where visitors stay: an area's top recommended town, not its geographic centre
+        // (Tenerife's centre is a 3,700 m volcano).
+        const pos = d.cities[0]
+          ? { lat: d.cities[0].lat, lng: d.cities[0].lng }
+          : d.lat !== undefined && d.lng !== undefined
             ? { lat: d.lat, lng: d.lng }
-            : d.cities[0]
-              ? { lat: d.cities[0].lat, lng: d.cities[0].lng }
-              : undefined;
+            : undefined;
         const weather = pos
           ? await lastYearWeather(
               pos.lat,

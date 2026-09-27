@@ -205,9 +205,14 @@ interface StoreState {
 const g = globalThis as typeof globalThis & { __musafirStore?: StoreState };
 const state: StoreState = (g.__musafirStore ??= { db: null, rev: 0, checkedAt: 0, adapter: null, queue: Promise.resolve() });
 
+let adapterPromise: Promise<StorageAdapter> | null = null;
+
 function adapter(): Promise<StorageAdapter> {
-  state.adapter ??= storageKind() === "neo4j" ? import("./store-neo4j.ts").then((m) => m.neo4jAdapter()) : Promise.resolve(fileAdapter);
-  return state.adapter;
+  // Cached per module instance, not on globalThis: after a dev hot-reload the adapter must run the
+  // new mapping code (a global cache kept saving trips with the old code). The Neo4j driver itself
+  // stays shared on globalThis inside store-neo4j.ts, so no extra connections are opened.
+  adapterPromise ??= storageKind() === "neo4j" ? import("./store-neo4j.ts").then((m) => m.neo4jAdapter()) : Promise.resolve(fileAdapter);
+  return adapterPromise;
 }
 
 /**

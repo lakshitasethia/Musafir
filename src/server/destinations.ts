@@ -68,7 +68,11 @@ export async function resolveDestination(input: string): Promise<ResolvedDestina
       10_000,
     )) as { search?: { id: string; label?: string; description?: string }[] };
     const hits = search.search ?? [];
-    if (hits.length === 0) return null;
+    if (hits.length === 0) {
+      // "Lisbon, Portugal" / "Tulum, Mexico": Wikidata search wants the bare name.
+      const bare = q.split(",")[0].trim();
+      return bare !== q && bare.length >= 2 ? resolveDestination(bare) : null;
+    }
 
     const rows = await sparql(`SELECT ?item ?loc ?sl ?wv ?isPlace ?isCountry ?isContinent ?isRegion WHERE {
   VALUES ?item { ${hits.map((h) => `wd:${h.id}`).join(" ")} }
