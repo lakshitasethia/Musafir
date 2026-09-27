@@ -2853,3 +2853,44 @@ section[aria-label="Itinerary graph"] > .mz-panel.mz-simulator.mz-report::after 
     break-after: avoid;
   }
 }
+
+/* Trips list: each row gets its own Download PDF, beside (not inside) the link */
+.mz-trip-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--mz-line-strong);
+}
+
+.mz-trip-row > .mz-list-item {
+  flex: 1;
+  min-width: 0;
+  border-bottom: 0;
+}
+
+.mz-trip-pdf {
+  flex: none;
+}
+
+@media (max-width: 480px) {
+  .mz-trip-pdf-long {
+    display: none;
+  }
+}
+
+/* Printable itinerary: live stamp (also printed, so the PDF says which version) */
+.mz-print-live {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  color: var(--mz-ink-soft);
+}
+
+.mz-print-live i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--mz-sage);
+}

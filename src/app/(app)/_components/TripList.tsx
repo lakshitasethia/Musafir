@@ -351,7 +351,7 @@ export function TripList() {
       {trips?.length === 0 && <p className="mz-muted">No trips yet.</p>}
       <ul className="mz-list">
         {trips?.map((t) => (
-          <li key={t.id}>
+          <li key={t.id} className="mz-trip-row">
             <Link className="mz-list-item" href={`/trip/${t.id}`}>
               <div>
                 <div className="mz-display mz-h3">{t.destination}</div>
@@ -361,6 +361,16 @@ export function TripList() {
               </div>
               {t.pending > 0 && <span className="mz-tier t-TRAVELLER">{t.pending} open</span>}
             </Link>
+            {/* Printable itinerary → the browser's Save as PDF (always the current plan) */}
+            <a
+              className="mz-btn mz-btn-ghost mz-btn-sm mz-trip-pdf"
+              href={`/trip/${t.id}/print?auto=1`}
+              target="_blank"
+              rel="noopener"
+              aria-label={`Download PDF of the ${t.destination} itinerary`}
+            >
+              <span className="mz-trip-pdf-long">Download </span>PDF
+            </a>
           </li>
         ))}
       </ul>

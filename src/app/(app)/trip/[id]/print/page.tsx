@@ -5,6 +5,7 @@ import { fromMinutes, toMinutes } from "@/lib/musafir/time.ts";
 import type { NodeCategory, TransitSegment } from "@/lib/musafir/schemas.ts";
 import { getSessionUser } from "@/server/auth.ts";
 import { getTripBundle } from "@/server/trips.ts";
+import { LiveRefresh } from "../../../_components/LiveRefresh";
 import { PrintButton } from "../../../_components/PrintButton";
 import { ItineraryMap, dayColor, type MapStop } from "../../../_ui/ItineraryMap";
 
@@ -69,6 +70,8 @@ export default async function PrintItinerary({
       <article className="mz-print-sheet">
         <header className="mz-print-head">
           <div className="mz-print-brand">Musafir · Your itinerary</div>
+          {/* Re-renders when the trip changes, so the saved PDF is always the current plan */}
+          <LiveRefresh tripId={trip.id} version={trip.version} />
           <h1 className="mz-print-title">{trip.destination}</h1>
           <p className="mz-print-dates">
             {trip.dateRange.start === trip.dateRange.end
