@@ -13,6 +13,7 @@
  * Nothing is hardcoded; continents are refused with a clear message.
  */
 import type { CityOption } from "@/lib/musafir/route.ts";
+import { placeSearchNames } from "@/lib/musafir/names.ts";
 import { cached, fetchJson, USER_AGENT } from "./osm.ts";
 
 export type DestinationScale = "place" | "region" | "country" | "continent";
@@ -58,9 +59,16 @@ const point = (wkt?: string) => {
 const qidOf = (uri?: string) => uri?.split("/").pop() ?? "";
 const truthy = (v?: { value: string }) => v?.value === "true" || v?.value === "1";
 
+/** "Phuket, Thailand" → tries "Phuket, Thailand", then "Phuket" (see placeSearchNames). */
 export async function resolveDestination(input: string): Promise<ResolvedDestination | null> {
-  const q = input.trim().slice(0, 120);
-  if (q.length < 2) return null;
+  for (const q of placeSearchNames(input)) {
+    const d = await resolveOne(q);
+    if (d) return d;
+  }
+  return null;
+}
+
+async function resolveOne(q: string): Promise<ResolvedDestination | null> {
   return cached(`destination:v6:${q.toLowerCase()}`, async () => {
     const search = (await fetchJson(
       `https://www.wikidata.org/w/api.php?${new URLSearchParams({ action: "wbsearchentities", search: q, language: "en", uselang: "en", type: "item", limit: "6", format: "json" })}`,

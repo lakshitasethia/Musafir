@@ -2397,3 +2397,25 @@ section[aria-label="Itinerary graph"] > .mz-panel.mz-simulator.mz-report::after 
 .mz-card > .mz-input:focus {
   border-color: var(--mz-ink);
 }
+
+/* Action cards: three buttons on one row must never widen the card past its
+   column. Grid children may shrink, and card buttons use tighter spacing. */
+.mz-card,
+.mz-card > *,
+.mz-card .mz-option > * {
+  min-width: 0;
+}
+
+.mz-card .mz-option > .mz-row {
+  gap: 8px;
+}
+
+.mz-card .mz-option > .mz-row > .mz-btn {
+  flex: 1 1 auto;
+  padding-inline: 12px;
+  letter-spacing: 0.1em;
+}
+
+.mz-card > .mz-h3 {
+  overflow-wrap: anywhere;
+}

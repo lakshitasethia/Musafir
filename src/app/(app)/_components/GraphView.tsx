@@ -31,6 +31,14 @@ const STYLE: Record<GNode["label"], { r: number; fill: string }> = {
 };
 const W = 900;
 const H = 560;
+// Layout balance: with the old 900 / 0.002 a 19-node trip settled ~1,800 wide
+// and the 443-node fleet ~19,000 wide, far outside the 900×560 canvas.
+// 200 / 0.04 keeps a trip ~400 wide and the fleet ~2,800 (fitted on settle).
+const CHARGE = 200;
+const GRAVITY = 0.04;
+const MIN_K = 0.1; // low enough to fit the whole fleet
+const MAX_K = 4;
+const FIT_PAD = 40;
 
 interface P {
   x: number;
@@ -59,6 +67,18 @@ export function GraphView({
   const publish = () =>
     setSnap(new Map([...pos.current].map(([k, v]) => [k, { x: v.x, y: v.y }])));
   const [view, setView] = useState({ x: 0, y: 0, k: 1 });
+  // Once the user zooms or pans, stop auto-fitting over their view.
+  const userMoved = useRef(false);
+  /** Zoom and centre so every node is on screen (never zooms in past 1). */
+  const fit = () => {
+    const pts = [...pos.current.values()];
+    if (pts.length === 0) return setView({ x: 0, y: 0, k: 1 });
+    const xs = pts.map((q) => q.x);
+    const ys = pts.map((q) => q.y);
+    const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    const k = Math.max(MIN_K, Math.min(1, (W - FIT_PAD * 2) / Math.max(1, x1 - x0), (H - FIT_PAD * 2) / Math.max(1, y1 - y0)));
+    setView({ k, x: W / 2 - ((x0 + x1) / 2) * k, y: H / 2 - ((y0 + y1) / 2) * k });
+  };
   const drag = useRef<{
     id: string | null;
     sx: number;
@@ -112,7 +132,7 @@ export function GraphView({
             dy = Math.random() - 0.5;
             d2 = 1;
           }
-          const f = (900 * alpha) / d2;
+          const f = (CHARGE * alpha) / d2;
           a.vx -= dx * f;
           a.vy -= dy * f;
           b.vx += dx * f;
@@ -143,8 +163,8 @@ export function GraphView({
       }
       for (const [n, p] of list) {
         // Gentle pull to the centre so separate trips stay on screen.
-        p.vx += (W / 2 - p.x) * 0.002 * alpha;
-        p.vy += (H / 2 - p.y) * 0.002 * alpha;
+        p.vx += (W / 2 - p.x) * GRAVITY * alpha;
+        p.vy += (H / 2 - p.y) * GRAVITY * alpha;
         if (p.fixed || drag.current?.id === n.id) {
           p.vx = p.vy = 0;
           continue;
@@ -158,6 +178,7 @@ export function GraphView({
       frame++;
       publish();
       if (frame < 320) raf = requestAnimationFrame(step);
+      else if (!userMoved.current) fit();
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
@@ -171,13 +192,14 @@ export function GraphView({
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault(); // stop the browser's page zoom
+      userMoved.current = true;
       const r = el.getBoundingClientRect();
       const sx = ((e.clientX - r.left) / r.width) * W;
       const sy = ((e.clientY - r.top) / r.height) * H;
       setView((v) => {
         const k = Math.min(
-          4,
-          Math.max(0.3, v.k * (e.deltaY < 0 ? 1.12 : 0.89)),
+          MAX_K,
+          Math.max(MIN_K, v.k * (e.deltaY < 0 ? 1.12 : 0.89)),
         );
         return {
           k,
@@ -189,15 +211,17 @@ export function GraphView({
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
   }, []);
-  const zoomBy = (f: number) =>
+  const zoomBy = (f: number) => {
+    userMoved.current = true;
     setView((v) => {
-      const k = Math.min(4, Math.max(0.3, v.k * f));
+      const k = Math.min(MAX_K, Math.max(MIN_K, v.k * f));
       return {
         k,
         x: W / 2 - ((W / 2 - v.x) / v.k) * k,
         y: H / 2 - ((H / 2 - v.y) / v.k) * k,
       };
     });
+  };
 
   const toGraph = (clientX: number, clientY: number) => {
     const r = svg.current!.getBoundingClientRect();
@@ -240,7 +264,10 @@ export function GraphView({
         <button
           type="button"
           className="mz-btn mz-btn-ghost mz-btn-sm"
-          onClick={() => setView({ x: 0, y: 0, k: 1 })}
+          onClick={() => {
+            userMoved.current = false;
+            fit();
+          }}
           aria-label="Reset view"
         >
           Reset
@@ -275,6 +302,7 @@ export function GraphView({
               publish();
             }
           } else {
+            userMoved.current = true;
             const r = svg.current!.getBoundingClientRect();
             setView((v) => ({
               ...v,

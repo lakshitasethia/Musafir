@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { englishTitle, isReadableLatin } from "./names.ts";
+import { englishTitle, isReadableLatin, placeSearchNames } from "./names.ts";
 
 test("readable Latin detection", () => {
   assert.ok(isReadableLatin("Hawa Mahal"));
@@ -25,4 +25,11 @@ test("Latin local name is used as-is", () => {
 test("no readable name → say what it is, never transliterate", () => {
   assert.deepEqual(englishTitle({ name: "カフェバルドー", kind: "amenity=cafe", category: "DINING" }), { title: "Café", native: "カフェバルドー", generic: true });
   assert.equal(englishTitle({ name: "寺", kind: "tourism=attraction", category: "CULTURE" }).title, "Landmark");
+});
+
+test("place search tries the full name, then the bare name", () => {
+  assert.deepEqual(placeSearchNames("Phuket, Thailand"), ["Phuket, Thailand", "Phuket"]);
+  assert.deepEqual(placeSearchNames("Tenerife (Canary Islands)"), ["Tenerife (Canary Islands)", "Tenerife"]);
+  assert.deepEqual(placeSearchNames("  Goa  "), ["Goa"]);
+  assert.deepEqual(placeSearchNames("x"), []);
 });
