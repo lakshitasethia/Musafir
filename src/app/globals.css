@@ -2054,3 +2054,50 @@ a {
     transform: none;
   }
 }
+
+/* Paid plans submit a form to /api/checkout; the button looks like the links */
+.plan_cta-form {
+  margin-top: auto;
+}
+
+button.plan_cta {
+  width: 100%;
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.plan_card.is-featured button.plan_cta {
+  background: var(--dark-umber-500);
+}
+
+/* Result of a checkout round-trip */
+.checkout_banner {
+  scroll-margin-top: 8rem; /* clear the fixed nav when the redirect jumps here */
+  max-width: 48rem;
+  margin: 3rem auto 0;
+  padding: 1rem 1.25rem;
+  border-radius: 10px;
+  border-left: 3px solid;
+  font-size: 1rem;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.checkout_banner.is-ok {
+  border-color: #5e8b72;
+  background: rgba(94, 139, 114, 0.1);
+  color: #33533f;
+}
+
+.checkout_banner.is-info {
+  border-color: #4b6b94;
+  background: rgba(75, 107, 148, 0.08);
+  color: #2f4868;
+}
+
+.checkout_banner.is-warn {
+  border-color: #c98a45;
+  background: rgba(229, 169, 106, 0.14);
+  color: #6b4318;
+}
