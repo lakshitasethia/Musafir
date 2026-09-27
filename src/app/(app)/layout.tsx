@@ -9,6 +9,8 @@ import { WhatsAppHelp } from "./_components/WhatsAppHelp";
 export const metadata: Metadata = {
   title: "Musafir",
   description: "A self-healing travel companion for travellers and operators.",
+  // Installed on iPhone ("Add to Home Screen") it opens full-screen like an app.
+  appleWebApp: { capable: true, title: "Musafir", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
