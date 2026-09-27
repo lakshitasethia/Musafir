@@ -59,3 +59,14 @@ export function englishTitle(p: { name: string; nameEn?: string; kind: string; c
   if (isReadableLatin(p.name)) return { title: p.name, generic: false };
   return { title: kindLabel(p.kind, p.category), native: p.name || undefined, generic: true };
 }
+
+/**
+ * Names to try, in order, when looking a destination up by its label. Wikidata's
+ * label search finds "Phuket" but not "Phuket, Thailand", and LLMs (and people)
+ * often add the country or a note in brackets, so fall back to the bare name.
+ */
+export function placeSearchNames(input: string): string[] {
+  const full = input.trim().slice(0, 120);
+  const bare = full.replace(/\s*\([^)]*\)\s*$/, "").split(",")[0].trim();
+  return [...new Set([full, bare])].filter((n) => n.length >= 2);
+}
