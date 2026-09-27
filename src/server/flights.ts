@@ -5,6 +5,8 @@
  * is cached for 60 s and shared by every lookup. We never sell or invent fares:
  * booking is a hand-off to a search engine.
  */
+import { cached } from "./osm.ts";
+
 const SNAPSHOT_TTL_MS = 60_000;
 
 interface Snapshot {
@@ -82,14 +84,82 @@ export interface FlightStatus {
   observedAt: string;
 }
 
-/** Callsign as broadcast by the transponder (e.g. "AIC101", "IGO6E2"), case-insensitive. */
-export async function trackFlight(callsign: string): Promise<FlightStatus | null> {
-  const want = callsign.replace(/\s+/g, "").toUpperCase();
+// ── Ticket flight numbers → radio callsigns ─────────────────────────
+// Tickets show the airline's IATA code (6E 964, AI 101); aircraft broadcast the ICAO code
+// (IGO964, AIC101). The mapping comes from OpenFlights' public airline dataset (cached a week).
+const AIRLINES_URL = "https://raw.githubusercontent.com/jpatokal/openflights/master/data/airlines.dat";
+interface Airline {
+  name: string;
+  iata: string;
+  icao: string;
+  active: boolean;
+}
+
+function parseCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let quoted = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') quoted = !quoted;
+    else if (ch === "," && !quoted) {
+      out.push(cur);
+      cur = "";
+    } else cur += ch;
+  }
+  out.push(cur);
+  return out.map((v) => (v === "\\N" ? "" : v.trim()));
+}
+
+async function airlines(): Promise<Airline[]> {
+  return cached("openflights:airlines:v1", async () => {
+    const res = await fetch(AIRLINES_URL, { signal: AbortSignal.timeout(15_000) });
+    if (!res.ok) throw new Error(`airline list HTTP ${res.status}`);
+    return (await res.text())
+      .split("\n")
+      .map(parseCsvLine)
+      .filter((f) => f.length >= 8 && /^[A-Z]{3}$/.test(f[4]))
+      .map((f) => ({ name: f[1], iata: f[3].toUpperCase(), icao: f[4].toUpperCase(), active: f[7] === "Y" }));
+  });
+}
+
+export interface CallsignGuess {
+  callsign: string;
+  airline?: string;
+}
+
+/** "6E 964" → IGO964 (IndiGo); "AIC101" stays; unknown codes are searched as typed. */
+export async function callsignsFor(query: string): Promise<CallsignGuess[]> {
+  const q = query.replace(/[\s-]+/g, "").toUpperCase();
+  const list = await airlines().catch(() => [] as Airline[]);
+  const icao = /^([A-Z]{3})(\d{1,4}[A-Z]{0,2})$/.exec(q);
+  if (icao) {
+    const a = list.find((x) => x.icao === icao[1]);
+    return [{ callsign: q, airline: a?.name }];
+  }
+  const iata = /^([A-Z0-9]{2})(\d{1,4}[A-Z]?)$/.exec(q);
+  if (iata) {
+    const num = iata[2].replace(/^0+(?=\d)/, "");
+    const matches = list.filter((x) => x.iata === iata[1]).sort((a, b) => Number(b.active) - Number(a.active));
+    const guesses = matches.slice(0, 3).flatMap((a) => [...new Set([`${a.icao}${num}`, `${a.icao}${iata[2]}`])].map((callsign) => ({ callsign, airline: a.name })));
+    if (guesses.length) return guesses;
+  }
+  return [{ callsign: q }];
+}
+
+/** Live position for a ticket flight number ("6E 964") or radio callsign ("IGO964"). */
+export async function trackFlight(query: string): Promise<{ status: FlightStatus | null; searched: CallsignGuess[] }> {
+  const searched = await callsignsFor(query);
+  const wanted = new Set(searched.map((g) => g.callsign));
   const snap = await snapshot();
   // State vector indices per OpenSky docs: 0 icao24, 1 callsign, 2 origin_country, 4 last_contact,
   // 5 longitude, 6 latitude, 7 baro_altitude, 8 on_ground, 9 velocity (m/s), 10 true_track.
-  const row = snap.states.find((s) => typeof s[1] === "string" && (s[1] as string).trim().toUpperCase() === want);
-  if (!row) return null;
+  const row = snap.states.find((s) => typeof s[1] === "string" && wanted.has((s[1] as string).trim().toUpperCase()));
+  if (!row) return { status: null, searched };
+  return { status: toStatus(row, snap), searched };
+}
+
+function toStatus(row: unknown[], snap: Snapshot): FlightStatus {
   const n = (v: unknown) => (typeof v === "number" ? v : null);
   return {
     callsign: String(row[1]).trim(),

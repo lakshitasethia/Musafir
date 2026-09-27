@@ -128,7 +128,7 @@ export function FlightsView() {
 
       <SectionHeader index={2} eyebrow="Live" title="Track a flight" />
       <p className="mz-small mz-muted" style={{ margin: 0 }}>
-        Live position from The OpenSky Network&apos;s volunteer receivers. Use the callsign the plane broadcasts — usually the airline&apos;s ICAO code plus the number (Air India 101 → AIC101, IndiGo 6E 2131 → IGO2131).
+        Live position from The OpenSky Network&apos;s volunteer receivers. Type the flight number from your ticket (6E 2131, AI 101, EK 510) — we translate it to the callsign the plane broadcasts. Planes show only while in the air.
       </p>
       <form
         className="mz-panel mz-row"
@@ -148,7 +148,7 @@ export function FlightsView() {
           }
         }}
       >
-        <input className="mz-input" value={callsign} onChange={(e) => setCallsign(e.target.value.toUpperCase())} placeholder="AIC101" maxLength={10} aria-label="Callsign" />
+        <input className="mz-input" value={callsign} onChange={(e) => setCallsign(e.target.value.toUpperCase())} placeholder="6E 2131" maxLength={10} aria-label="Flight number" />
         <button className="mz-btn mz-btn-sm" disabled={busy || callsign.trim().length < 3}>
           {busy ? "…" : "Track"}
         </button>
