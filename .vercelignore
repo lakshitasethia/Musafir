@@ -1,0 +1,12 @@
+# Never upload local secrets or data to Vercel
+.env*
+!.env.example
+credentials.json
+.data/
+.remember/
+.vercel/
+# Separate Python service (deployed on its own), local build output
+whatsapp/
+.next/
+node_modules/
+*.tsbuildinfo
