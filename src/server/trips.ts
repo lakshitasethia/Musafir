@@ -222,17 +222,43 @@ export async function createTrip(user: SessionUser, input: z.infer<typeof Create
 }
 
 /** Marks the planner as starting; the caller runs runPlanner() after the response. */
-export async function startPlanner(user: SessionUser, tripId: string) {
-  await write((db) => {
+/**
+ * Starts the planner on empty days. With `replan`, days are cleared first so the planner redrafts
+ * them with the current preferences — except days holding a locked booking (those are operator-managed).
+ */
+export async function startPlanner(user: SessionUser, tripId: string, opts: { replan?: boolean } = {}) {
+  const out = await write((db) => {
     const rec = findTrip(db, user, tripId);
     if (user.role === "traveller" && rec.ownerId !== user.id) throw new HttpError(403, "Not your trip");
     const p = rec.planner;
     if (p?.status === "RUNNING" && Date.now() - Date.parse(p.at) < PLANNER_STALE_MS) throw new HttpError(409, "The planner is already working on this trip");
-    if (rec.trip.schedule.every((d) => d.nodes.length > 0)) throw new HttpError(409, "Every day already has stops — clear a day to re-plan it");
-    rec.planner = { status: "RUNNING", note: "Planner starting…", at: new Date().toISOString() };
-    log(db, tripId, actorOf(user), "Asked the planner agent to draft empty days");
+    let cleared = 0;
+    let locked = 0;
+    if (opts.replan) {
+      rec.trip.schedule = rec.trip.schedule.map((d) => {
+        if (d.nodes.length === 0) return d;
+        if (d.nodes.some((n) => n.type === "HARD")) {
+          locked++;
+          return d;
+        }
+        cleared++;
+        return { ...d, nodes: [], transitSegments: [], dailyFatigueScore: 0 };
+      });
+      if (cleared > 0) {
+        rec.trip.version += 1;
+        rec.updatedAt = new Date().toISOString();
+      }
+    }
+    if (rec.trip.schedule.every((d) => d.nodes.length > 0)) {
+      throw new HttpError(409, locked ? "Every day has a locked booking — your operator manages those days" : "Every day already has stops — use “Save & re-plan” to redraft them");
+    }
+    rec.planner = { status: "RUNNING", note: cleared ? `Redrafting ${cleared} day${cleared > 1 ? "s" : ""} with your new preferences…` : "Planner starting…", at: new Date().toISOString() };
+    log(db, tripId, actorOf(user), cleared ? `Re-planning ${cleared} day(s) with new preferences${locked ? ` (kept ${locked} day(s) with locked bookings)` : ""}` : "Asked the planner agent to draft empty days");
+    return { version: rec.trip.version, cleared, locked };
   });
+  publish({ type: "trip.updated", tripId, version: out.version });
   publish({ type: "activity", tripId, message: "planner started" });
+  return out;
 }
 
 export async function updateTripSettings(user: SessionUser, tripId: string, input: z.infer<typeof TripSettingsSchema>) {

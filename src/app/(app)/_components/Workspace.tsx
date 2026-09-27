@@ -380,7 +380,19 @@ export function Workspace({ tripId, role, backHref }: { tripId: string; role: Ro
           {role === "traveller" && day.nodes.length > 0 && <GroupVotePanel tripId={tripId} dayIndex={activeDayIndex} version={data.trip.version} />}
 
           {role === "traveller" ? (
-            <VibePanel key={JSON.stringify(data.trip.vibeConfig)} vibe={data.trip.vibeConfig} busy={busy} onSave={(v) => run(() => api(`/api/trips/${tripId}/settings`, { method: "PATCH", body: { vibeConfig: v } }), "Preferences saved").catch(() => undefined)} />
+            <VibePanel
+              key={JSON.stringify(data.trip.vibeConfig)}
+              vibe={data.trip.vibeConfig}
+              busy={busy}
+              onSave={(v) => run(() => api(`/api/trips/${tripId}/settings`, { method: "PATCH", body: { vibeConfig: v } }), "Preferences saved").catch(() => undefined)}
+              onReplan={(v) =>
+                run(async () => {
+                  await api(`/api/trips/${tripId}/settings`, { method: "PATCH", body: { vibeConfig: v } });
+                  const r = await api<{ cleared: number; locked: number }>(`/api/trips/${tripId}/plan`, { body: { replan: true } });
+                  flash(`Redrafting ${r.cleared} day${r.cleared === 1 ? "" : "s"}${r.locked ? ` · kept ${r.locked} with locked bookings` : ""} — watch it update`);
+                }).catch(() => undefined)
+              }
+            />
           ) : (
             data.autonomy && <AutonomyPanel key={JSON.stringify(data.autonomy)} policy={data.autonomy} busy={busy} onSave={(a) => run(() => api(`/api/trips/${tripId}/settings`, { method: "PATCH", body: { autonomy: a } }), "Autonomy rules saved").catch(() => undefined)} />
           )}
@@ -586,16 +598,21 @@ function Simulator({
   );
 }
 
-function VibePanel({ vibe, busy, onSave }: { vibe: VibeConfig; busy: boolean; onSave: (v: VibeConfig) => void }) {
+function VibePanel({ vibe, busy, onSave, onReplan }: { vibe: VibeConfig; busy: boolean; onSave: (v: VibeConfig) => void; onReplan: (v: VibeConfig) => void }) {
   const [v, setV] = useState(vibe);
   const dirty = JSON.stringify(v) !== JSON.stringify(vibe);
   return (
     <div className="mz-panel mz-stack mz-vibe">
       <div className="mz-panel-title">
         <span className="mz-label">Vibe equalizer</span>
-        <button className="mz-btn mz-btn-sm" disabled={!dirty || busy} onClick={() => onSave(v)}>
-          Save
-        </button>
+        <div className="mz-row">
+          <button className="mz-btn mz-btn-ghost mz-btn-sm" disabled={!dirty || busy} onClick={() => onSave(v)}>
+            Save
+          </button>
+          <button className="mz-btn mz-btn-sm" disabled={busy} onClick={() => onReplan(v)} title="Redraft the planned days with these preferences (locked bookings stay)">
+            Save &amp; re-plan
+          </button>
+        </div>
       </div>
       <p className="mz-tiny mz-muted" style={{ margin: 0 }}>
         Pacing tunes self-healing: fast pacing protects the number of stops; slow pacing would rather skip one than rush it.
