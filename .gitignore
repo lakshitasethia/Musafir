@@ -46,3 +46,6 @@ next-env.d.ts
 # musafir local data store (users, trips, dev secret)
 /.data/
 !.env.example
+
+# local API credentials (e.g. OpenSky client) — never commit
+credentials.json
