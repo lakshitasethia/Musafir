@@ -123,6 +123,16 @@ async function readAll(tx: ManagedTransaction): Promise<{ db: Db; rev: number }>
   return { db, rev };
 }
 
+/** Replaces a trip's Day/Stop subgraph and ownership in one round trip (unit subqueries run in order). */
+const TRIP_UPSERT = `MERGE (t:Trip {id: $id}) SET t = $row
+WITH t
+CALL { WITH t MATCH (t)-[:HAS_DAY]->(d:Day) OPTIONAL MATCH (d)-[:HAS_STOP]->(s:Stop) DETACH DELETE s, d }
+CALL { WITH t UNWIND $days AS row CREATE (d:Day) SET d = row CREATE (t)-[:HAS_DAY]->(d) }
+CALL { UNWIND $stops AS row MATCH (d:Day {key: row.dayKey}) CREATE (s:Stop) SET s = row CREATE (d)-[:HAS_STOP]->(s) }
+CALL { UNWIND $legs AS row MATCH (a:Stop {id: row.from}), (b:Stop {id: row.to}) CREATE (a)-[r:NEXT]->(b) SET r.mode = row.mode, r.durationMinutes = row.durationMinutes, r.distanceMeters = row.distanceMeters, r.fatigueScore = row.fatigueScore }
+CALL { WITH t OPTIONAL MATCH (:User)-[o:OWNS]->(t) DELETE o }
+WITH t MATCH (u:User {id: $owner}) MERGE (u)-[:OWNS]->(t)`;
+
 async function writeDiff(tx: ManagedTransaction, prev: Db, next: Db) {
   // Users
   const users = diffById(prev.users, next.users, (u) => u.id);
@@ -136,15 +146,8 @@ async function writeDiff(tx: ManagedTransaction, prev: Db, next: Db) {
   for (const { rec } of trips.upserts) {
     const id = rec.trip.id;
     const graph = tripToGraph(rec.trip);
-    await tx.run("MERGE (t:Trip {id: $id}) SET t = $row", { id, row: tripRecordRow(rec, activityOf(next, id)) });
-    await tx.run("MATCH (:Trip {id: $id})-[:HAS_DAY]->(d:Day) OPTIONAL MATCH (d)-[:HAS_STOP]->(s:Stop) DETACH DELETE s, d", { id });
-    await tx.run("MATCH (t:Trip {id: $id}) UNWIND $rows AS row CREATE (d:Day) SET d = row CREATE (t)-[:HAS_DAY]->(d)", { id, rows: graph.days });
-    await tx.run("UNWIND $rows AS row MATCH (d:Day {key: row.dayKey}) CREATE (s:Stop) SET s = row CREATE (d)-[:HAS_STOP]->(s)", { rows: graph.stops });
-    await tx.run(
-      "UNWIND $rows AS row MATCH (a:Stop {id: row.from}), (b:Stop {id: row.to}) CREATE (a)-[r:NEXT]->(b) SET r.mode = row.mode, r.durationMinutes = row.durationMinutes, r.distanceMeters = row.distanceMeters, r.fatigueScore = row.fatigueScore",
-      { rows: graph.legs },
-    );
-    await tx.run("MATCH (t:Trip {id: $id}) OPTIONAL MATCH (:User)-[o:OWNS]->(t) DELETE o WITH DISTINCT t MATCH (u:User {id: $owner}) MERGE (u)-[:OWNS]->(t)", { id, owner: rec.ownerId });
+    // One statement per trip (was six): each round trip to a hosted database costs ~70 ms.
+    await tx.run(TRIP_UPSERT, { id, row: tripRecordRow(rec, activityOf(next, id)), days: graph.days, stops: graph.stops, legs: graph.legs, owner: rec.ownerId });
   }
   if (trips.deletes.length) {
     await tx.run("MATCH (t:Trip) WHERE t.id IN $ids OPTIONAL MATCH (t)-[:HAS_DAY]->(d:Day) OPTIONAL MATCH (d)-[:HAS_STOP]->(s:Stop) DETACH DELETE s, d, t", { ids: trips.deletes });
@@ -224,16 +227,15 @@ export async function neo4jAdapter(): Promise<StorageAdapter & { close(): Promis
 export const GRAPH_CYPHER = `MATCH (u:User)-[:OWNS]->(t:Trip)
 WHERE $owner IS NULL OR u.id = $owner
 WITH u, t ORDER BY t.updatedAt DESC LIMIT $limit
-OPTIONAL MATCH (t)-[:HAS_DAY]->(d:Day)
-OPTIONAL MATCH (d)-[:HAS_STOP]->(s:Stop)
-OPTIONAL MATCH (s)-[nx:NEXT]->(s2:Stop)
-OPTIONAL MATCH (p:Proposal)-[:FOR]->(t)
+CALL { WITH t MATCH (t)-[:HAS_DAY]->(d:Day) RETURN collect(d {.key, .dayIndex, .date}) AS days }
+CALL { WITH t MATCH (t)-[:HAS_DAY]->(:Day)-[:HAS_STOP]->(s:Stop)
+       RETURN collect(s {.id, .title, .category, .isOutdoor, .type, .dayKey, .start}) AS stops }
+CALL { WITH t MATCH (t)-[:HAS_DAY]->(:Day)-[:HAS_STOP]->(s:Stop)-[nx:NEXT]->(s2:Stop)
+       RETURN collect({from: s.id, to: s2.id, mode: nx.mode, minutes: nx.durationMinutes}) AS legs }
+CALL { WITH t MATCH (p:Proposal)-[:FOR]->(t) WHERE p.status = 'PENDING' RETURN collect(p {.id, .status, .json}) AS proposals }
 RETURN u {.id, .name, .role, .guest} AS u,
        t {.id, .destination, .dateStart, .dateEnd, .verifiedJson, .version} AS t,
-       collect(DISTINCT d {.key, .dayIndex, .date}) AS days,
-       collect(DISTINCT s {.id, .title, .category, .isOutdoor, .type, .dayKey, .start}) AS stops,
-       collect(DISTINCT CASE WHEN s2 IS NULL THEN NULL ELSE {from: s.id, to: s2.id, mode: nx.mode, minutes: nx.durationMinutes} END) AS legs,
-       collect(DISTINCT p {.id, .status, .json}) AS proposals`;
+       days, stops, legs, proposals`;
 
 /** Read-only: runs GRAPH_CYPHER. The user projection is explicit, so password fields are never read. */
 export async function graphRows(owner: string | null, limit: number): Promise<Row[]> {

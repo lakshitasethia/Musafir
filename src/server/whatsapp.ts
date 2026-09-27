@@ -1,6 +1,6 @@
 /**
  * The WhatsApp on-ground assistant's public number, for the traveller's
- * "Help on WhatsApp" button. WHATSAPP_DISPLAY_NUMBER wins; otherwise it is
+ * "Help on WhatsApp" button. WHATSAPP_DISPLAY_NUMBER (or WHATSAPP_NUMBER) wins; otherwise it is
  * read once an hour from Meta's Graph API with the bot's own credentials.
  * No number known → null, and the button isn't shown (never a guessed number).
  */
@@ -14,7 +14,7 @@ export interface WhatsAppContact {
 }
 
 export async function whatsappContact(): Promise<WhatsAppContact | null> {
-  const fixed = (process.env.WHATSAPP_DISPLAY_NUMBER || "").replace(/\D/g, "");
+  const fixed = (process.env.WHATSAPP_DISPLAY_NUMBER || process.env.WHATSAPP_NUMBER || "").replace(/\D/g, "");
   if (fixed.length >= 8) return { number: fixed, name: process.env.WHATSAPP_DISPLAY_NAME || undefined };
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
   const id = process.env.WHATSAPP_PHONE_NUMBER_ID;

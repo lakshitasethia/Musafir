@@ -220,14 +220,39 @@ export async function activeStorageKind(): Promise<"file" | "neo4j"> {
   return (await adapter()).name;
 }
 
-/** Loads once; afterwards reloads only if another instance has written since. */
+/** Beyond this, a read waits for the "did another server write?" check instead of revalidating in the background. */
+const MAX_STALE_MS = 30_000;
+let revalidating: Promise<void> | null = null;
+
+async function revalidate(a: StorageAdapter): Promise<void> {
+  const rev = await a.currentRev();
+  state.checkedAt = Date.now();
+  if (rev === null || rev === state.rev) return;
+  const loaded = await a.load();
+  state.db = loaded.db;
+  state.rev = loaded.rev;
+  state.checkedAt = Date.now();
+}
+
+/**
+ * Loads once; afterwards reloads only if another instance has written since.
+ * Stale-while-revalidate: a recent cache is served immediately while the rev
+ * check runs in the background (a hosted database is a ~70 ms round trip).
+ * Writes stay safe regardless — persist() rejects a stale rev and retries.
+ */
 async function fresh(force = false): Promise<Db> {
   const a = await adapter();
   if (state.db && !force) {
-    if (Date.now() - state.checkedAt < FRESHNESS_MS) return state.db;
-    const rev = await a.currentRev();
-    state.checkedAt = Date.now();
-    if (rev === null || rev === state.rev) return state.db;
+    const age = Date.now() - state.checkedAt;
+    if (age < FRESHNESS_MS) return state.db;
+    revalidating ??= revalidate(a)
+      .catch(() => undefined)
+      .finally(() => {
+        revalidating = null;
+      });
+    if (age < MAX_STALE_MS) return state.db;
+    await revalidating;
+    return state.db!;
   }
   const loaded = await a.load();
   state.db = loaded.db;

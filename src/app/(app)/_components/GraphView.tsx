@@ -284,14 +284,11 @@ export function GraphView({
           }
         }}
         onPointerUp={(e) => {
+          // Pointer capture sends every release here, so node clicks are resolved here too.
           const d = drag.current;
           drag.current = null;
-          if (
-            d &&
-            !d.id &&
-            Math.abs(e.clientX - d.sx) + Math.abs(e.clientY - d.sy) < 4
-          )
-            onSelect(null);
+          if (!d || Math.abs(e.clientX - d.sx) + Math.abs(e.clientY - d.sy) >= 4) return;
+          onSelect(d.id ? (nodes.find((n) => n.id === d.id) ?? null) : null);
         }}
       >
         <g transform={`translate(${view.x},${view.y}) scale(${view.k})`}>
@@ -346,14 +343,6 @@ export function GraphView({
                   (
                     e.currentTarget.ownerSVGElement as Element
                   ).setPointerCapture(e.pointerId);
-                }}
-                onPointerUp={(e) => {
-                  const d = drag.current;
-                  if (
-                    d?.id === n.id &&
-                    Math.abs(e.clientX - d.sx) + Math.abs(e.clientY - d.sy) < 4
-                  )
-                    onSelect(n);
                 }}
               >
                 <circle
