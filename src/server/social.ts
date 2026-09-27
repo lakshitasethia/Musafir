@@ -36,7 +36,8 @@ export interface SocialReport {
 
 const TTL_MS = 15 * 60_000;
 const WINDOW_DAYS = 7;
-const MAX_POSTS = 40;
+// 20 short posts keep one classification call well under a free-tier per-minute token budget.
+const MAX_POSTS = 20;
 const g = globalThis as typeof globalThis & { __musafirSocial?: Map<string, { at: number; value: SocialReport }>; __musafirGdeltAt?: { t: number } };
 const memo = (g.__musafirSocial ??= new Map());
 const gdeltGate = (g.__musafirGdeltAt ??= { t: 0 });
@@ -138,7 +139,7 @@ async function classify(raw: Raw[], city: string): Promise<{ signals: Signal[]; 
       `You read public posts and news about travel conditions in ${city}. For each post, decide the weather-related hazard it reports for travellers ` +
       `(${HAZARDS.join(", ")}; "none" if it isn't about current conditions there) and a severity 0..1 (0.2 minor, 0.5 disruptive, 0.9 dangerous). ` +
       'Reply as JSON {"posts":[{"i","hazard","severity"}]} covering every index.',
-    user: JSON.stringify(raw.map((p, i) => ({ i, text: p.excerpt }))),
+    user: JSON.stringify(raw.map((p, i) => ({ i, text: p.excerpt.slice(0, 160) }))),
   });
   if (r.ok) {
     const by = new Map(r.value.posts.map((p) => [p.i, p]));

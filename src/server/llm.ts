@@ -35,34 +35,32 @@ function providers(tier: LlmTier, domain = false): Provider[] {
   const list: Provider[] = [];
   const nugen = nugenProvider();
   if (nugen && domain) list.push(nugen);
-  if (process.env.GROQ_API_KEY) {
-    list.push({
-      id: "groq",
-      baseUrl: "https://api.groq.com/openai/v1",
-      apiKey: process.env.GROQ_API_KEY,
-      model:
-        tier === "fast"
-          ? (process.env.GROQ_MODEL_FAST || "openai/gpt-oss-20b")
-          : (process.env.GROQ_MODEL_DEEP || "openai/gpt-oss-120b"),
-      jsonMode: true,
-    });
-    // Groq's JSON mode occasionally rejects a generation (HTTP 400) or returns a wrong shape;
-    // one retry on the larger model is cheap and usually succeeds before falling back to Gemini.
-    if (tier === "fast") {
-      list.push({ id: "groq", baseUrl: "https://api.groq.com/openai/v1", apiKey: process.env.GROQ_API_KEY, model: process.env.GROQ_MODEL_DEEP || "openai/gpt-oss-120b", jsonMode: true });
-    }
-  }
+  // Groq's free tier allows ~8k tokens per minute per key, so every configured key is used in turn:
+  // a key that answers 429 is skipped until its minute resets.
+  const groqKeys = [...new Set([process.env.GROQ_API_KEY, process.env.GROQ_API_KEY_2, ...(process.env.GROQ_API_KEYS ?? "").split(",")].map((k) => k?.trim()).filter((k): k is string => !!k))];
+  const fastModel = process.env.GROQ_MODEL_FAST || "openai/gpt-oss-20b";
+  const deepModel = process.env.GROQ_MODEL_DEEP || "openai/gpt-oss-120b";
+  const groq = (apiKey: string, model: string): Provider => ({ id: "groq", baseUrl: "https://api.groq.com/openai/v1", apiKey, model, jsonMode: true });
+  const usable = groqKeys.filter((k) => (limitedUntil.get(k) ?? 0) < Date.now());
+  const keys = usable.length ? usable : groqKeys;
+  for (const k of keys) list.push(groq(k, tier === "fast" ? fastModel : deepModel));
+  // JSON mode occasionally rejects a generation (400) or returns a wrong shape: one retry on the larger model.
+  if (tier === "fast") for (const k of keys) list.push(groq(k, deepModel));
   if (process.env.GEMINI_API_KEY) {
-    list.push({
-      id: "gemini",
-      baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
-      apiKey: process.env.GEMINI_API_KEY,
-      model: process.env.GEMINI_MODEL || "gemini-3.8-flash",
-      jsonMode: true,
-    });
+    // Google retires model ids for new keys (404 "not available to new users"): try the configured one, then current ones.
+    for (const model of [...new Set([process.env.GEMINI_MODEL, "gemini-3.5-flash", "gemini-flash-latest"].filter((m): m is string => !!m))]) {
+      if ((goneModels.get(model) ?? 0) > Date.now()) continue;
+      list.push({ id: "gemini", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", apiKey: process.env.GEMINI_API_KEY, model, jsonMode: true });
+    }
   }
   return list;
 }
+
+/** Groq keys that answered 429, until their per-minute window resets; Gemini models that answered 404. */
+const g = globalThis as typeof globalThis & { __musafirLlmLimits?: { keys: Map<string, number>; models: Map<string, number> } };
+const limits = (g.__musafirLlmLimits ??= { keys: new Map(), models: new Map() });
+const limitedUntil = limits.keys;
+const goneModels = limits.models;
 
 export function llmConfigured(): boolean {
   return providers("fast").length > 0;
@@ -104,6 +102,12 @@ export async function llmJson<T>(opts: {
       });
       if (!res.ok) {
         failures.push(`${p.id} HTTP ${res.status}`);
+        if (res.status === 429 && p.id === "groq") {
+          // Per-minute token budget used up on this key: rest it until Groq says it resets.
+          const wait = Number(res.headers.get("retry-after")) || 60;
+          limitedUntil.set(p.apiKey, Date.now() + Math.min(120, wait) * 1000);
+        }
+        if (res.status === 404 && p.id === "gemini") goneModels.set(p.model, Date.now() + 6 * 3600_000);
         continue;
       }
       const body = (await res.json()) as { choices?: { message?: { content?: string } }[] };
