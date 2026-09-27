@@ -15,7 +15,8 @@ interface Plan {
   price: string;
   per: string;
   features: string[];
-  cta: { label: string; href: string };
+  /** href = plain link; checkout = Stripe Checkout for that plan (test mode) */
+  cta: { label: string; href?: string; checkout?: "plus" | "studio" };
   featured?: boolean;
 }
 
@@ -25,7 +26,7 @@ const PLANS: Plan[] = [
     audience: "For independent explorers",
     name: "Traveller Free",
     line: "Plan unlimited multi-day trips from real places, shaped by your vibe.",
-    price: "$0",
+    price: "₹0",
     per: "forever",
     features: [
       "Day-by-day plans drafted from real map data",
@@ -40,7 +41,7 @@ const PLANS: Plan[] = [
     audience: "For frequent travellers",
     name: "Musafir Sentinel Plus",
     line: "Musafir watches every trip and fixes the day before you notice.",
-    price: "$29",
+    price: "₹2,499",
     per: "per trip",
     features: [
       "Everything in Traveller Free",
@@ -49,15 +50,15 @@ const PLANS: Plan[] = [
       "Operator backup for locked bookings",
       "One-tap cards whenever a choice is yours",
     ],
-    cta: { label: "Unlock protection", href: "/signup" },
+    cta: { label: "Unlock protection", checkout: "plus" },
     featured: true,
   },
   {
     audience: "For DMCs & tour operators",
     name: "Operator Studio",
     line: "The back office for every trip you run: approvals, weather and the whole fleet.",
-    price: "$199",
-    per: "per month",
+    price: "₹16,999",
+    per: "per trip",
     features: [
       "Approval queue with reply-by deadlines",
       "Weather digital twin with what-if simulation",
@@ -65,7 +66,7 @@ const PLANS: Plan[] = [
       "Autonomy rules per trip",
       "Verify trips your team has checked",
     ],
-    cta: { label: "Apply for operator access", href: "/signup" },
+    cta: { label: "Apply for operator access", checkout: "studio" },
   },
 ];
 
@@ -77,7 +78,19 @@ function Arrow() {
   );
 }
 
-export default function SubscriptionPage() {
+// Where Stripe (or the checkout route) sent the visitor back to.
+const CHECKOUT_BANNER: Record<string, { tone: "ok" | "info" | "warn"; text: string }> = {
+  success: { tone: "ok", text: "Payment received in Stripe test mode. No real money moved, and nothing is unlocked yet: that needs a verified Stripe webhook." },
+  cancelled: { tone: "info", text: "Checkout cancelled. Nothing was charged." },
+  unconfigured: { tone: "warn", text: "Stripe isn't connected yet: add a test secret key (STRIPE_SECRET_KEY=sk_test_…) to .env.local and restart the dev server." },
+  "live-key-refused": { tone: "warn", text: "A live Stripe key is set. This demo only runs in test mode, so the checkout was not opened." },
+  "stripe-error": { tone: "warn", text: "Stripe couldn't open a checkout just now. Check the key and try again." },
+  "unknown-plan": { tone: "warn", text: "That plan can't be bought online." },
+};
+
+export default async function SubscriptionPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
+  const status = (await searchParams).checkout;
+  const banner = typeof status === "string" ? CHECKOUT_BANNER[status] : undefined;
   return (
     <div className="page-wrapper subscription_page">
       <header className="nav_component" style={{ color: "#3d2d20" }}>
@@ -134,7 +147,13 @@ export default function SubscriptionPage() {
             </p>
           </div>
 
-          <ul className="plan_list">
+          {banner && (
+            <p id="checkout-status" className={`checkout_banner is-${banner.tone}`} role="status">
+              {banner.text}
+            </p>
+          )}
+
+          <ul className="plan_list" id="plans">
             {PLANS.map((p) => (
               <li key={p.name} className={`plan_card${p.featured ? " is-featured" : ""}`}>
                 <span className="plan_audience">{p.audience}</span>
@@ -154,17 +173,28 @@ export default function SubscriptionPage() {
                     </li>
                   ))}
                 </ul>
-                {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-                <a href={p.cta.href} className="plan_cta">
-                  {p.cta.label}
-                  <Arrow />
-                </a>
+                {p.cta.checkout ? (
+                  // Posts to our route, which opens Stripe's hosted checkout.
+                  <form method="post" action="/api/checkout" className="plan_cta-form">
+                    <input type="hidden" name="plan" value={p.cta.checkout} />
+                    <button type="submit" className="plan_cta">
+                      {p.cta.label}
+                      <Arrow />
+                    </button>
+                  </form>
+                ) : (
+                  // eslint-disable-next-line @next/next/no-html-link-for-pages
+                  <a href={p.cta.href} className="plan_cta">
+                    {p.cta.label}
+                    <Arrow />
+                  </a>
+                )}
               </li>
             ))}
           </ul>
 
           <p className="subscription_note">
-            Prices in USD. Payments aren&apos;t live yet, so every plan starts on the free tier today.
+            Prices in INR. Checkout runs on Stripe in test mode: pay with card 4242 4242 4242 4242, any future date, any CVC. No real money moves.
           </p>
         </div>
       </main>
