@@ -85,7 +85,7 @@ async function rank(
   };
 }
 
-function replacementPatches(day: DaySchedule, node: ItineraryNode, c: VenueCandidate, why: string): TripPatch[] {
+export function replacementPatches(day: DaySchedule, node: ItineraryNode, c: VenueCandidate, why: string): TripPatch[] {
   const inserted: ItineraryNode = {
     id: newId(),
     type: "SOFT",

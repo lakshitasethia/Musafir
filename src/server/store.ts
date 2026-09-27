@@ -55,7 +55,11 @@ export interface ProposalOption {
 }
 
 /** What raised a proposal: an engine disruption, or an agent-led improvement. */
-export type ProposalTrigger = Disruption | { kind: "COMMUTE_SPIKE"; nodeId: string; reason: string };
+export type ProposalTrigger =
+  | Disruption
+  | { kind: "COMMUTE_SPIKE"; nodeId: string; reason: string }
+  /** Traveller asked for a different place instead of one stop (optionally "a park", "something indoor"). */
+  | { kind: "SWAP"; nodeId: string; reason: string; want?: string };
 
 export type ProposalStatus = "PENDING" | "AUTO_APPLIED" | "APPLIED" | "DISMISSED" | "STALE" | "UNDONE";
 

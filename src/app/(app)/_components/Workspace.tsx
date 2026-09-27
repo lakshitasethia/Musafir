@@ -350,7 +350,7 @@ export function Workspace({ tripId, role, backHref }: { tripId: string; role: Ro
                   const r = await api<{ understood: string; status: string }>(`/api/trips/${tripId}/days/${activeDayIndex}/report`, {
                     body: { text, nowMinute: now.getHours() * 60 + now.getMinutes() },
                   });
-                  flash(`${r.understood} — ${r.status === "AUTO_APPLIED" ? "fixed, undo from the card" : "here's a new plan"}`);
+                  flash(r.status === "APPLIED" ? `${r.understood} ✓` : r.status === "AUTO_APPLIED" ? `${r.understood} — fixed, undo from the card` : `${r.understood} — pick one from the card`);
                 })
               }
             />
@@ -491,7 +491,7 @@ function ReportBox({ busy, disabled, onReport }: { busy: boolean; disabled: bool
         send();
       }}
     >
-      <span className="mz-label">Something changed?</span>
+      <span className="mz-label">Change anything</span>
       <div className="mz-row">
         <input
           className="mz-input"
@@ -499,7 +499,7 @@ function ReportBox({ busy, disabled, onReport }: { busy: boolean; disabled: bool
           maxLength={300}
           disabled={disabled || busy}
           onChange={(e) => setText(e.target.value)}
-          placeholder={disabled ? "Add stops first" : "“20 min late”, “the fort is closed”, “it's pouring”"}
+          placeholder={disabled ? "Add stops first" : "“skip the museum”, “change the cafe”, “move the fort to 4pm”, “20 min late”"}
           aria-label="Tell Musafir what changed"
         />
         <button className="mz-btn mz-btn-sm" disabled={disabled || busy || text.trim().length < 3}>

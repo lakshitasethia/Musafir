@@ -9,7 +9,7 @@ import { z } from "zod";
 import { newId } from "@/lib/musafir/ids.ts";
 import { heal, applyPatches, policyFromVibe, ScheduleError, type Disruption } from "@/lib/musafir/reducer.ts";
 import { classifyRisk, canDecide, AutonomyPolicySchema, DEFAULT_AUTONOMY, type RiskTier } from "@/lib/musafir/risk.ts";
-import { TripPatchSchema, VibeConfigSchema, type DaySchedule, type TripState } from "@/lib/musafir/schemas.ts";
+import { TripPatchSchema, VibeConfigSchema, type DaySchedule, type TripPatch, type TripState } from "@/lib/musafir/schemas.ts";
 import { fromMinutes, MINUTES_PER_DAY } from "@/lib/musafir/time.ts";
 import { HttpError, type SessionUser } from "./auth.ts";
 import { publish } from "./events.ts";
@@ -559,4 +559,59 @@ export async function reviewAdvisory(user: SessionUser, proposalId: string, acti
   });
   publish({ type: "proposal.changed", tripId: out.tripId, proposalId: out.id });
   return { state: out.review!.state };
+}
+
+/**
+ * The traveller asked to swap one stop. Options (built from real nearby places by
+ * report.ts) are validated and risk-classified here, where the trip's rules live.
+ * Only that stop changes when an option is applied.
+ */
+export async function createSwapProposal(
+  user: SessionUser,
+  tripId: string,
+  dayIndex: number,
+  nodeId: string,
+  choices: { label: string; patches: TripPatch[]; rankedBy: string; rationale: string }[],
+  want?: string,
+) {
+  await warmDay(tripId, dayIndex);
+  const out = await write((db) => {
+    const rec = findTrip(db, user, tripId);
+    if (user.role === "traveller" && rec.ownerId !== user.id) throw new HttpError(403, "Not your trip");
+    const day = findDay(rec, dayIndex);
+    const target = day.nodes.find((n) => n.id === nodeId);
+    if (!target) throw new HttpError(404, "Stop not found");
+    if (target.type === "HARD") throw new HttpError(422, "That's a locked booking — your operator manages it");
+    const options: ProposalOption[] = [];
+    for (const c of choices) {
+      try {
+        applyPatches(day, c.patches, { routed: routedLookup });
+      } catch {
+        continue; // doesn't fit the day (e.g. runs past midnight) — never offer it
+      }
+      options.push({ id: newId(), label: c.label, source: "agent", patches: c.patches, conflicts: [], risk: classifyRisk(day, c.patches, [], rec.autonomy), rankedBy: c.rankedBy, rationale: c.rationale });
+    }
+    if (options.length === 0) throw new HttpError(422, `No suitable place near "${target.title}" fits that slot${want ? ` (${want})` : ""}`);
+    const proposal: ProposalRecord = {
+      id: newId(),
+      tripId,
+      dayIndex,
+      baseVersion: rec.trip.version,
+      createdAt: new Date().toISOString(),
+      createdBy: actorOf(user),
+      disruption: { kind: "SWAP", nodeId, reason: `Swap "${target.title}"`, ...(want ? { want } : {}) },
+      urgency: "RECOMMENDATION",
+      headline: `Instead of ${target.title}${want ? ` — ${want}` : ""}`,
+      context: `${options.length} real place${options.length > 1 ? "s" : ""} near it, same time slot. Nothing else in your day changes.`,
+      options,
+      status: "PENDING",
+      agentStatus: "DONE",
+      affectedNodeIds: [nodeId],
+    };
+    db.proposals.push(proposal);
+    log(db, tripId, actorOf(user), `Asked to swap ${target.title}${want ? ` for ${want}` : ""}`);
+    return proposal;
+  });
+  publish({ type: "proposal.changed", tripId, proposalId: out.id });
+  return out;
 }

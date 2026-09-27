@@ -185,6 +185,27 @@ await check("traveller reports a delay in words", async () => {
   expect(r.status === 200, JSON.stringify(r.data));
   return `${r.data.understood} → ${r.data.status}`;
 });
+await check("targeted edits in words touch only the named stop", async () => {
+  await refresh();
+  const day = bundle.trip.schedule[0];
+  const soft = day.nodes.filter((n) => n.type === "SOFT");
+  const victim = soft[soft.length - 1];
+  const others = day.nodes.filter((n) => n.id !== victim.id).map((n) => `${n.id}@${n.timeSlot.start}`).sort();
+  const r = await t.req(`/api/trips/${tripId}/days/1/report`, { body: { text: `I don't want ${victim.title}`, nowMinute: 540 } });
+  expect(r.status === 200 && r.data.status === "APPLIED", JSON.stringify(r.data));
+  await refresh();
+  const after = bundle.trip.schedule[0].nodes;
+  expect(!after.some((n) => n.id === victim.id), "stop not removed");
+  expect(JSON.stringify(after.map((n) => `${n.id}@${n.timeSlot.start}`).sort()) === JSON.stringify(others), "other stops changed");
+  return r.data.understood;
+});
+await check("swap one stop → a card of real alternatives", async () => {
+  await refresh();
+  const target = bundle.trip.schedule[0].nodes.find((n) => n.type === "SOFT" && n.category !== "DINING");
+  const r = await t.req(`/api/trips/${tripId}/days/1/report`, { body: { text: `swap ${target.title} for something else`, nowMinute: 540 } });
+  expect(r.status === 200 || r.status === 422, JSON.stringify(r.data));
+  return r.status === 200 ? `${r.data.understood} (${r.data.status})` : r.data.error;
+});
 await check("unclear report is refused politely", async () => {
   const r = await t.req(`/api/trips/${tripId}/days/1/report`, { body: { text: "we had a lovely lunch", nowMinute: 780 } });
   expect(r.status === 422, `got ${r.status}`);
