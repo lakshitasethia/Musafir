@@ -210,6 +210,16 @@ function adapter(): Promise<StorageAdapter> {
   return state.adapter;
 }
 
+/**
+ * The store actually in use. The adapter is chosen once per process, so this can
+ * differ from storageKind() if the env changed after start (e.g. NEO4J_* added to
+ * .env.local while the dev server ran). Readers that bypass read() must use this,
+ * or they read one database while writes go to the other.
+ */
+export async function activeStorageKind(): Promise<"file" | "neo4j"> {
+  return (await adapter()).name;
+}
+
 /** Loads once; afterwards reloads only if another instance has written since. */
 async function fresh(force = false): Promise<Db> {
   const a = await adapter();

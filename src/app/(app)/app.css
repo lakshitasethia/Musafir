@@ -2114,3 +2114,286 @@ textarea.mz-input:focus {
   color: var(--mz-ink-soft);
   opacity: 1;
 }
+
+/* ══ HANDOFF (2026-09-27, ~05:30): dashboards, report box, advisory card ═ */
+
+/* ── Dashboards (/dashboard, /ops/dashboard) ──────────────────────────── */
+.mz-dash-tiles {
+  gap: 14px;
+}
+
+.mz-dash-tile {
+  position: relative;
+  padding: 18px 20px 16px;
+  border-color: var(--mz-line-strong);
+  border-radius: 14px;
+  background: var(--mz-card);
+  box-shadow: 0 16px 32px -26px rgba(61, 45, 32, 0.45);
+  transition: transform 0.35s var(--mz-ease), box-shadow 0.35s;
+}
+
+.mz-dash-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 22px 40px -26px rgba(61, 45, 32, 0.5);
+}
+
+.mz-dash-tile > .mz-h2 {
+  font-size: clamp(2.4rem, 4vw, 3.2rem);
+  line-height: 0.9;
+}
+
+.mz-dash {
+  gap: 20px;
+  margin-top: 6px;
+}
+
+/* the graph sits on its own paper card */
+.mz-panel.mz-dash-graph {
+  border: 1px solid var(--mz-line-strong);
+  border-radius: 14px;
+  background: var(--mz-card);
+  box-shadow: 0 22px 44px -34px rgba(61, 45, 32, 0.5);
+}
+
+.mz-dash-graph > p.mz-muted {
+  margin: 0;
+  padding: 56px 24px;
+  text-align: center;
+  font-size: 1rem;
+}
+
+.mz-dash-graph > p.mz-muted a {
+  color: var(--mz-ink);
+  text-underline-offset: 3px;
+}
+
+/* the dashboard SVG shares the old itinerary's .mz-graph name: undo that
+   timeline's offset and rule, and give the canvas a survey grid */
+.mz-dash-graph .mz-graph {
+  margin-left: 0;
+  border-left: 0;
+  cursor: grab;
+  background-color: #fbf8f3;
+  background-image:
+    linear-gradient(to right, rgba(194, 198, 202, 0.25) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(194, 198, 202, 0.25) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+.mz-dash-graph .mz-graph:active {
+  cursor: grabbing;
+}
+
+.mz-graph-edge {
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+
+/* labels stay legible over edges: a paper halo behind the text */
+.mz-graph-label,
+.mz-graph-edge-label {
+  paint-order: stroke;
+  stroke: #fbf8f3;
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.mz-graph-label {
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.mz-graph g[data-node] > circle:first-child {
+  transition: filter 0.2s;
+}
+
+.mz-graph g[data-node]:hover > circle:first-child {
+  filter: drop-shadow(0 3px 5px rgba(61, 45, 32, 0.35));
+}
+
+.mz-dash-legend {
+  padding: 12px 18px;
+  border-top: 1px solid var(--mz-line);
+  gap: 16px;
+}
+
+.mz-dash-legend > span {
+  letter-spacing: 0.04em;
+  color: var(--mz-ink-soft);
+}
+
+.mz-dash-legend i {
+  margin-right: 4px;
+  box-shadow: 0 0 0 2px var(--mz-card), 0 0 0 3px var(--mz-line-strong);
+}
+
+/* selection panel: a card that stays in view beside the graph */
+.mz-panel.mz-dash-side {
+  position: sticky;
+  top: 84px;
+  padding: 20px;
+  border: 1px solid var(--mz-line-strong);
+  border-radius: 14px;
+  background: var(--mz-card);
+  box-shadow: 0 22px 44px -34px rgba(61, 45, 32, 0.5);
+}
+
+.mz-dash-side > .mz-h3 {
+  font-size: 1.6rem;
+  line-height: 1.02;
+}
+
+.mz-dash-side details {
+  padding-top: 12px;
+  border-top: 1px solid var(--mz-line);
+}
+
+.mz-dash-side details > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mz-dash-side details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.mz-dash-side details > summary::before {
+  content: "+";
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--mz-line-strong);
+  border-radius: 50%;
+  transition: transform 0.25s var(--mz-ease);
+}
+
+.mz-dash-side details[open] > summary::before {
+  transform: rotate(45deg);
+}
+
+/* the Cypher query reads as code */
+.mz-cypher {
+  max-height: 260px;
+  overflow: auto;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--mz-obsidian);
+  color: var(--mz-on-dark);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  line-height: 1.55;
+}
+
+/* ── "Something changed?" (traveller trip page) ───────────────────────
+   Decision: light, not the dark simulator band. Travellers should feel
+   invited to type a line, and traveller screens stay light. */
+.mz-panel.mz-simulator.mz-report,
+section[aria-label="Itinerary graph"] > .mz-panel.mz-simulator.mz-report {
+  --mz-ink: #3d2d20;
+  --mz-ink-soft: rgba(61, 45, 32, 0.68);
+  --mz-ink-faint: rgba(61, 45, 32, 0.45);
+  --mz-line: rgba(61, 45, 32, 0.12);
+  --mz-line-strong: rgba(61, 45, 32, 0.24);
+  --mz-paper: #fbf8f3;
+  margin: 28px 0;
+  padding: 22px 22px 20px;
+  gap: 14px;
+  border: 1px solid var(--mz-line-strong);
+  border-radius: 14px;
+  background: var(--mz-card);
+  background-image: none;
+  color: var(--mz-ink);
+  box-shadow: 0 22px 44px -34px rgba(61, 45, 32, 0.5);
+}
+
+.mz-panel.mz-simulator.mz-report::before,
+.mz-panel.mz-simulator.mz-report::after,
+section[aria-label="Itinerary graph"] > .mz-panel.mz-simulator.mz-report::before,
+section[aria-label="Itinerary graph"] > .mz-panel.mz-simulator.mz-report::after {
+  content: none;
+}
+
+.mz-report > .mz-label {
+  font-family: Apris, "Times New Roman", serif;
+  font-size: clamp(1.4rem, 2.6vw, 1.8rem);
+  letter-spacing: 0.04em;
+  line-height: 1;
+  color: var(--mz-ink);
+}
+
+.mz-report > .mz-label::before {
+  content: "";
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 10px;
+  border-radius: 50%;
+  background: var(--mz-sage);
+  vertical-align: 0.22em;
+}
+
+.mz-report > .mz-row {
+  flex-wrap: nowrap;
+  gap: 10px;
+}
+
+.mz-report .mz-input {
+  flex: 1;
+  min-height: 48px;
+  padding: 0 18px;
+  border: 1px solid var(--mz-line-strong);
+  border-radius: 100px;
+  background: var(--mz-paper);
+}
+
+.mz-report .mz-input:focus {
+  border-color: var(--mz-ink);
+}
+
+.mz-report .mz-btn {
+  min-height: 48px;
+  padding: 1px 22px 0;
+  background: var(--mz-ink);
+  color: var(--mz-paper);
+  border-color: var(--mz-ink);
+}
+
+.mz-report .mz-btn:disabled {
+  background: transparent;
+  color: var(--mz-ink);
+}
+
+/* ── Weather advisory card (operator queue, /ops) ─────────────────────
+   The only queue card with a note field: a faint rain-slate wash sets it
+   apart from healing proposals. */
+.mz-card.u-RECOMMENDATION:has(> .mz-input) {
+  background-image: linear-gradient(to bottom, rgba(75, 107, 148, 0.09), transparent 70%);
+  border-left-color: var(--mz-slate);
+}
+
+.mz-card.u-RECOMMENDATION:has(> .mz-input) > .mz-spread > .mz-label {
+  text-decoration: none;
+  color: var(--mz-ink);
+}
+
+.mz-card.u-RECOMMENDATION:has(> .mz-input) .mz-tier.t-TRAVELLER {
+  color: var(--mz-slate);
+  border-color: var(--mz-slate);
+}
+
+.mz-card > .mz-input {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--mz-line-strong);
+  border-radius: 8px;
+  background: var(--mz-paper);
+  font-size: 0.95rem;
+}
+
+.mz-card > .mz-input:focus {
+  border-color: var(--mz-ink);
+}

@@ -8,7 +8,7 @@
 import { newId } from "@/lib/musafir/ids.ts";
 import { HttpError, type SessionUser } from "./auth.ts";
 import { publish } from "./events.ts";
-import { read, storageKind, write, type ProposalRecord } from "./store.ts";
+import { activeStorageKind, read, write, type ProposalRecord } from "./store.ts";
 
 export interface GraphNode {
   id: string;
@@ -128,7 +128,8 @@ async function fileRows(owner: string | null, limit: number): Promise<Row[]> {
 export async function graphFor(user: SessionUser): Promise<GraphView> {
   const owner = user.role === "operator" ? null : user.id;
   const limit = user.role === "operator" ? MAX_TRIPS.operator : MAX_TRIPS.traveller;
-  if (storageKind() === "neo4j") {
+  // Same store the trips were written to (see activeStorageKind).
+  if ((await activeStorageKind()) === "neo4j") {
     const m = await import("./store-neo4j.ts");
     return { source: "neo4j", cypher: m.GRAPH_CYPHER, ...build(await m.graphRows(owner, limit), user) };
   }
