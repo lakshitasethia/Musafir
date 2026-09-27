@@ -183,16 +183,16 @@ export default function MusafirExperience() {
               >
                 LOG IN
               </a>
-              <a
-                href="#contact"
+              <Link
+                href="/subscription"
                 className="button is-secondary is-nav"
                 style={{
                   borderColor: isDarkNav ? "#ffffff" : "#3d2d20",
                   color: isDarkNav ? "#ffffff" : "#3d2d20",
                 }}
               >
-                CONTACT
-              </a>
+                SUBSCRIPTION
+              </Link>
             </div>
           </div>
         </div>

@@ -391,7 +391,13 @@ export function Workspace({ tripId, role, backHref }: { tripId: string; role: Ro
             <h2 className="mz-display mz-h2">Action cards</h2>
             <span className="mz-label">{pending.length} open</span>
           </div>
-          {pending.length === 0 && <p className="mz-small mz-muted">Nothing needs you. Simulate a disruption to see the engine heal the day.</p>}
+          {pending.length === 0 && (
+            <p className="mz-small mz-muted">
+              {role === "traveller"
+                ? "Nothing needs you. Running late or something closed? Tell us in “Something changed?” and we'll re-plan the day."
+                : "Nothing needs you. Simulate a disruption to see the engine heal the day."}
+            </p>
+          )}
           {[...pending, ...history.slice(0, 8)].map(renderCard)}
 
           <div className="mz-panel">
