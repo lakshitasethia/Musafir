@@ -141,7 +141,7 @@ a {
 }
 
 .nav_menu_link {
-  color: var(--nav--text-color);
+  color: var(--nav-ink, var(--nav--text-color));
   font-family: 'Founders Grotesk Text', Arial, sans-serif;
   font-size: 0.75rem;
   font-weight: 400;
@@ -160,7 +160,7 @@ a {
   display: flex;
   justify-content: center;
   align-items: center;
-  color: var(--nav--text-color);
+  color: var(--nav-ink, var(--nav--text-color));
   transition: color 0.3s ease;
 }
 
@@ -204,19 +204,288 @@ a {
   text-transform: uppercase;
 }
 
+/* --nav-ink is set by SiteNav: white over photos, umber on paper. */
 .button.is-secondary.is-nav {
-  border: 1px solid var(--nav--text-color);
-  color: var(--nav--text-color);
+  border: 1px solid var(--nav-ink, var(--nav--text-color));
+  color: var(--nav-ink, var(--nav--text-color));
   background-color: transparent;
   padding: 0.55rem 1.45rem;
   font-size: 0.75rem;
   line-height: 1;
-  transition: color 0.2s, border-color 0.2s, background-color 0.2s;
+  transition: color 0.25s var(--nav-ease), border-color 0.25s var(--nav-ease),
+    background-color 0.25s var(--nav-ease);
 }
 
+/* hover: a light sand fill with umber text, over paper and over photos alike */
 .button.is-secondary.is-nav:hover {
-  background-color: var(--nav--text-color);
-  color: var(--white);
+  background-color: var(--nav-sand);
+  border-color: var(--nav-sand);
+  color: var(--dark-umber-500);
+}
+
+/* ── Desktop mega-menu (SiteNav) ─────────────────────────────────────────── */
+:root {
+  --nav-ease: cubic-bezier(0.165, 0.84, 0.44, 1);
+  --nav-sand: #eee4d6;
+}
+
+/* paper behind the bar while a menu is open; the scrim sits under it */
+.nav_component::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-color: var(--ivory-300);
+  opacity: 0;
+  transition: opacity 0.35s var(--nav-ease);
+  pointer-events: none;
+}
+
+.nav_component.is-menu-open::before {
+  opacity: 1;
+}
+
+.nav_menu_link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.nav_dd-chevron {
+  width: 0.55rem;
+  height: auto;
+  transition: transform 0.4s var(--nav-ease);
+}
+
+.nav_menu_link.is-active .nav_dd-chevron {
+  transform: rotate(180deg);
+}
+
+/* the open menu's link stays full ink, the others step back */
+.nav_component.is-menu-open .nav_menu_link {
+  opacity: 0.5;
+}
+
+.nav_component.is-menu-open .nav_menu_link.is-active,
+.nav_component.is-menu-open .nav_menu_link:hover {
+  opacity: 1;
+}
+
+.nav_dd {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 0;
+  overflow: hidden;
+  background-color: var(--ivory-300);
+  border-top: 1px solid transparent;
+  border-bottom: 1px solid transparent;
+  pointer-events: none;
+  transition: height 0.5s var(--nav-ease), border-color 0.3s var(--nav-ease);
+}
+
+.nav_component.is-menu-open .nav_dd {
+  pointer-events: auto;
+  border-top-color: rgba(61, 45, 32, 0.12);
+  border-bottom-color: rgba(61, 45, 32, 0.12);
+}
+
+/* every menu is stacked in the same spot; the active one fades up in */
+.nav_dd-body {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.2s var(--nav-ease), visibility 0s linear 0.2s;
+}
+
+.nav_dd-body.is-active {
+  visibility: visible;
+  opacity: 1;
+  transition: opacity 0.35s var(--nav-ease) 0.05s, visibility 0s;
+}
+
+.nav_dd-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 26rem;
+  gap: 4rem;
+  padding: 2.5rem 0 2.75rem;
+}
+
+.nav_dd-cols {
+  display: flex;
+  gap: 4.5rem;
+}
+
+.nav_dd-col,
+.nav_dd-feature {
+  opacity: 0;
+  transform: translateY(0.6rem);
+  transition: opacity 0.2s var(--nav-ease), transform 0.2s var(--nav-ease);
+}
+
+.nav_dd-body.is-active .nav_dd-col,
+.nav_dd-body.is-active .nav_dd-feature {
+  opacity: 1;
+  transform: none;
+  transition: opacity 0.5s var(--nav-ease), transform 0.6s var(--nav-ease);
+  transition-delay: calc(0.06s + var(--i, 0) * 0.05s);
+}
+
+.nav_dd-col {
+  width: 15rem;
+}
+
+.nav_dd-eyebrow {
+  margin-bottom: 1.35rem;
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(61, 45, 32, 0.5);
+}
+
+.nav_dd-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nav_dd-link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  color: var(--dark-umber-500);
+}
+
+.nav_dd-list:has(.has-note) {
+  gap: 1.35rem;
+}
+
+/* hairline that draws in under the label */
+.nav_dd-label {
+  align-self: flex-start;
+  font-size: 1.05rem;
+  line-height: 1.25;
+  background: linear-gradient(currentColor, currentColor) no-repeat 0 100% / 0 1px;
+  transition: background-size 0.45s var(--nav-ease);
+}
+
+.nav_dd-link:hover .nav_dd-label,
+.nav_dd-link:focus-visible .nav_dd-label {
+  background-size: 100% 1px;
+}
+
+.nav_dd-note {
+  max-width: 15rem;
+  font-size: 0.8rem;
+  font-weight: 300;
+  line-height: 1.4;
+  color: rgba(61, 45, 32, 0.62);
+}
+
+.nav_dd-feature {
+  display: grid;
+  grid-template-columns: 10rem minmax(0, 1fr);
+  gap: 1.5rem;
+  align-self: start;
+  padding-left: 4rem;
+  border-left: 1px solid rgba(61, 45, 32, 0.12);
+  color: var(--dark-umber-500);
+}
+
+.nav_dd-feature-img {
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  background-color: #efe7dc;
+}
+
+.nav_dd-feature-img img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.06);
+  transition: transform 0.9s var(--nav-ease);
+}
+
+.nav_dd-body.is-active .nav_dd-feature-img img {
+  transform: scale(1);
+}
+
+.nav_dd-feature:hover .nav_dd-feature-img img {
+  transform: scale(1.04);
+}
+
+.nav_dd-feature-text .nav_dd-eyebrow {
+  margin-bottom: 0.75rem;
+}
+
+.nav_dd-feature-title {
+  font-family: 'Apris', Georgia, serif;
+  font-size: 1.35rem;
+  line-height: 1.1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.nav_dd-feature-text p {
+  margin: 0.75rem 0 1.1rem;
+  font-size: 0.8rem;
+  font-weight: 300;
+  line-height: 1.45;
+  color: rgba(61, 45, 32, 0.7);
+}
+
+.nav_dd-feature-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.nav_dd-feature-cta svg {
+  transition: transform 0.35s var(--nav-ease);
+}
+
+.nav_dd-feature:hover .nav_dd-feature-cta svg {
+  transform: translate(2px, -2px);
+}
+
+/* dims the page under an open menu */
+.nav_dd-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background-color: rgba(28, 33, 36, 0.28);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s var(--nav-ease);
+}
+
+.nav_component.is-menu-open .nav_dd-scrim {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav_dd,
+  .nav_dd-body,
+  .nav_dd-col,
+  .nav_dd-feature,
+  .nav_dd-feature-img img,
+  .nav_dd-scrim,
+  .nav_component::before {
+    transition: none !important;
+    transform: none !important;
+  }
 }
 
 /* SECTION HERO */
@@ -2027,11 +2296,23 @@ a {
   border-bottom: 1px solid rgba(61, 45, 32, 0.1);
 }
 
+/* backdrop-filter would trap the menu's fixed scrim inside the bar; the bar is
+   solid paper while a menu is open anyway */
+.subscription_page .nav_component.is-menu-open {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
 /* current page marker in the nav */
 .button.is-secondary.is-nav.is-current {
   background-color: var(--dark-umber-500);
   border-color: var(--dark-umber-500);
   color: var(--ivory-300);
+}
+
+.button.is-secondary.is-nav.is-current:hover {
+  background-color: #5a4535;
+  border-color: #5a4535;
 }
 
 @media (max-width: 991px) {
@@ -2133,7 +2414,9 @@ button.plan_cta {
   }
 
   .nav_menu,
-  .nav_contact-wrp {
+  .nav_contact-wrp,
+  .nav_dd,
+  .nav_dd-scrim {
     display: none;
   }
 
