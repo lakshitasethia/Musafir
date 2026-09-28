@@ -1210,376 +1210,120 @@ section[aria-label="Itinerary graph"] > .mz-panel:nth-child(2) .mz-btn-solid:hov
 .mz-mapped .mz-empty { font-size: calc(1.02rem * var(--mz-small-scale)); }
 .mz-mapped .mz-btn-sm { font-size: calc(0.82rem * var(--mz-small-scale)); }
 
-/* ── Packages: destination-style peach cards on the page's paper ──────── */
-.mz-packages {
-  /* warm peach from the testimonials sky, umber text on it */
-  --pkg-bg: #e3c6b8;
-  --pkg-card: #e3c6b8;
-  --pkg-line: #d3b2a3;
-  --pkg-rule: rgba(61, 45, 32, 0.18);
-  --pkg-accent: #8c6152;
-  --pkg-text: #3d2d20;
-  --pkg-soft: rgba(61, 45, 32, 0.78);
-  --pkg-faint: rgba(61, 45, 32, 0.6);
-  --pkg-radius: 12px;
-  padding: 24px 0 56px;
+/* ── Packages page ─────────────────────────────────────────────────────
+   One column for everything: heading, the Where / From / To bar and the
+   five style cards share the same left and right edges. */
+.mz-shell:has(.mz-packages) {
+  max-width: 1440px;
 }
 
-/* three across; the last row (two cards) centres instead of leaving a gap */
+.mz-stack:has(> .mz-packages) > .mz-small {
+  max-width: 62ch;
+  font-size: 1.15rem;
+  line-height: 1.5;
+}
+
+/* Where to · From · To as one booking bar: small labels, bigger answers */
+.mz-stack:has(> .mz-packages) > .mz-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0;
+  margin-top: 12px;
+  padding: 0;
+  border: 1px solid var(--mz-line-strong);
+  border-radius: var(--mz-radius);
+  background: var(--mz-card);
+}
+
+.mz-stack:has(> .mz-packages) > .mz-panel > .mz-grid-2 {
+  display: contents;
+}
+
+.mz-stack:has(> .mz-packages) > .mz-panel .mz-field {
+  gap: 6px;
+  padding: 16px 22px 12px;
+  transition: background-color 0.2s;
+}
+
+.mz-stack:has(> .mz-packages) > .mz-panel .mz-field + .mz-field,
+.mz-stack:has(> .mz-packages) > .mz-panel .mz-grid-2 > .mz-field {
+  border-left: 1px solid var(--mz-line);
+}
+
+.mz-stack:has(> .mz-packages) > .mz-panel .mz-field:focus-within {
+  background: var(--mz-paper-deep);
+  box-shadow: inset 0 -2px 0 var(--mz-ink);
+}
+
+/* the shaded field and its umber underline are the focus ring here */
+.mz-stack:has(> .mz-packages) > .mz-panel .mz-input:focus-visible {
+  outline: none;
+}
+
+.mz-stack:has(> .mz-packages) > .mz-panel .mz-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+}
+
+.mz-stack:has(> .mz-packages) > .mz-panel .mz-input {
+  min-height: 36px;
+  padding: 0;
+  border-bottom: 0;
+  font-size: 1.25rem;
+}
+
+.mz-stack:has(> .mz-packages) > .mz-panel .mz-input[aria-invalid="true"]::placeholder {
+  color: var(--mz-red);
+}
+
+.mz-stack:has(> .mz-packages) > .mz-panel > .mz-error {
+  grid-column: 1 / -1;
+  padding: 10px 22px;
+  border-top: 1px solid var(--mz-line);
+}
+
+/* the card row, introduced like the landing menu's eyebrows */
+.mz-packages {
+  padding: 40px 0 56px;
+}
+
+.mz-packages::before {
+  content: "Choose a travel style";
+  display: block;
+  margin-bottom: 18px;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mz-ink-soft);
+}
+
 .mz-pkg-grid {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 28px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 20px;
 }
 
+/* flat paper cards; the whole card is the Plan button's hit area */
 .mz-pkg {
-  flex: 0 1 calc((100% - 56px) / 3);
-  display: flex;
-  flex-direction: column;
-  min-width: 280px;
-  overflow: hidden;
-  background: var(--pkg-card);
-  border: 1px solid var(--pkg-line);
-  border-radius: var(--pkg-radius);
-}
-
-.mz-pkg-media {
   position: relative;
-  aspect-ratio: 460 / 365;
-  overflow: hidden;
-  border-bottom: 1px solid var(--pkg-line);
-}
-
-.mz-pkg-img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1);
-}
-
-.mz-pkg:hover .mz-pkg-img {
-  transform: scale(1.03);
-}
-
-.mz-pkg-tag,
-.mz-pkg-chip {
-  position: absolute;
-  top: 14px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px 7px;
-  border-radius: 4px;
-  font-size: 0.72rem;
-  line-height: 1;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.mz-pkg-tag {
-  left: 14px;
-  background: var(--pkg-bg);
-  color: var(--pkg-text);
-}
-
-.mz-pkg-chip {
-  right: 14px;
-  background: #f4f5f6;
-  color: var(--pkg-text);
-  letter-spacing: 0.04em;
-  text-transform: none;
-  font-size: 0.82rem;
-}
-
-.mz-pkg-chip svg {
-  width: 12px;
-  height: 12px;
-  fill: var(--pkg-accent);
-}
-
-.mz-pkg-body {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 22px 24px 18px;
-}
-
-.mz-pkg-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--pkg-accent);
-  font-size: 0.74rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.mz-pkg-meta svg {
-  flex: none;
-  width: 14px;
-  height: 14px;
-  fill: currentColor;
-}
-
-.mz-pkg-title {
-  margin: 12px 0 0;
-  font-family: Apris, "Times New Roman", serif;
-  font-weight: 400;
-  font-size: clamp(1.9rem, 2.5vw, 2.5rem);
-  line-height: 1;
-  letter-spacing: 0.01em;
-  text-transform: uppercase;
-  color: var(--pkg-text);
-}
-
-.mz-pkg-blurb {
-  margin: 14px 0 20px;
-  font-size: 0.95rem;
-  line-height: 1.5;
-  color: var(--pkg-soft);
-}
-
-.mz-pkg-foot {
-  margin-top: auto;
-  padding-top: 16px;
-  border-top: 1px solid var(--pkg-rule);
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 16px;
-}
-
-.mz-pkg-foot-label {
-  display: block;
-  font-size: 0.78rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--pkg-faint);
-}
-
-.mz-pkg-foot-value {
-  display: block;
-  margin-top: 5px;
-  font-size: 1rem;
-  color: var(--pkg-text);
-}
-
-.mz-pkg-plan {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 44px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--pkg-text);
-  font-size: 0.8rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: color 0.2s;
-}
-
-.mz-pkg-plan svg {
-  width: 12px;
-  height: 12px;
-  fill: currentColor;
-  transition: transform 0.25s var(--mz-ease);
-}
-
-.mz-pkg-plan:hover {
-  color: var(--pkg-accent);
-}
-
-.mz-pkg-plan:hover svg {
-  transform: translate(2px, -2px);
-}
-
-.mz-pkg-plan:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.mz-pkg-plan:focus-visible {
-  outline: 2px solid var(--pkg-accent);
-  outline-offset: 3px;
-}
-
-/* Packages: all five cards in one row, compact; photos at 85% so the peach
-   softens them */
-.mz-pkg-grid {
-  flex-wrap: nowrap;
-  gap: 18px;
-}
-
-.mz-pkg {
-  flex: 1 1 0;
   min-width: 0;
-  --pkg-radius: 10px;
-}
-
-.mz-pkg-media {
-  background: var(--pkg-card);
-}
-
-.mz-pkg-img {
-  opacity: 0.85;
-}
-
-.mz-pkg-tag,
-.mz-pkg-chip {
-  top: 10px;
-  padding: 6px 8px 5px;
-  gap: 4px;
-  font-size: 0.6rem;
-}
-
-.mz-pkg-tag {
-  left: 10px;
-}
-
-.mz-pkg-chip {
-  right: 10px;
-  font-size: 0.66rem;
-}
-
-.mz-pkg-chip svg {
-  width: 9px;
-  height: 9px;
-}
-
-.mz-pkg-body {
-  padding: 14px 16px 12px;
-}
-
-.mz-pkg-meta {
-  gap: 6px;
-  font-size: 0.6rem;
-}
-
-.mz-pkg-meta svg {
-  width: 11px;
-  height: 11px;
-}
-
-.mz-pkg-title {
-  margin-top: 8px;
-  font-size: 1.35rem;
-}
-
-.mz-pkg-blurb {
-  margin: 9px 0 14px;
-  font-size: 0.8rem;
-  line-height: 1.45;
-}
-
-.mz-pkg-foot {
-  padding-top: 10px;
-  gap: 10px;
-}
-
-.mz-pkg-foot-label {
-  font-size: 0.62rem;
-}
-
-.mz-pkg-foot-value {
-  margin-top: 3px;
-  font-size: 0.8rem;
-}
-
-.mz-pkg-plan {
-  min-height: 36px;
-  gap: 4px;
-  font-size: 0.66rem;
-}
-
-.mz-pkg-plan svg {
-  width: 10px;
-  height: 10px;
-}
-
-/* Packages row spans the full window with an even gutter, not the shell */
-.mz-packages {
-  margin-inline: calc(50% - 50vw);
-  padding-inline: 40px;
-}
-
-.mz-pkg-grid {
-  gap: 24px;
-}
-
-/* Packages: frosted-glass cards. Translucent white + backdrop blur, bright
-   hairline edge and top highlight; no tint, the page shows through. */
-.mz-packages {
-  --pkg-card: rgba(255, 255, 255, 0.32);
-  --pkg-bg: rgba(255, 255, 255, 0.55);
-  --pkg-line: rgba(255, 255, 255, 0.75);
-  --pkg-rule: rgba(61, 45, 32, 0.12);
-  --pkg-accent: rgba(61, 45, 32, 0.6);
-}
-
-.mz-pkg {
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
-  backdrop-filter: blur(18px) saturate(160%);
-  box-shadow:
-    0 10px 36px -12px rgba(61, 45, 32, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
-}
-
-.mz-pkg-media {
-  background: transparent;
-  border-bottom-color: rgba(255, 255, 255, 0.6);
-}
-
-.mz-pkg-tag,
-.mz-pkg-chip {
-  background: rgba(255, 255, 255, 0.55);
-  color: var(--pkg-text);
-  border: 1px solid rgba(255, 255, 255, 0.75);
-  -webkit-backdrop-filter: blur(10px) saturate(150%);
-  backdrop-filter: blur(10px) saturate(150%);
-}
-
-/* Whole card is clickable: Plan's hit area stretches over the card, so the
-   card and the button do the same thing and there is still one control. */
-.mz-pkg {
-  position: relative;
-  transition: transform 0.35s var(--mz-ease), box-shadow 0.35s;
-}
-
-.mz-pkg-plan::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  border-radius: inherit;
-  cursor: pointer;
-}
-
-.mz-pkg-plan:disabled::after {
-  cursor: not-allowed;
+  overflow: hidden;
+  background: var(--mz-card);
+  border: 1px solid var(--mz-line);
+  border-radius: var(--mz-radius);
+  transition: transform 0.45s cubic-bezier(0.165, 0.84, 0.44, 1),
+    box-shadow 0.45s cubic-bezier(0.165, 0.84, 0.44, 1), border-color 0.3s;
 }
 
 .mz-pkg:hover {
   transform: translateY(-4px);
-  box-shadow:
-    0 18px 44px -14px rgba(61, 45, 32, 0.26),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
-}
-
-.mz-pkg:hover .mz-pkg-plan {
-  color: var(--pkg-accent);
-}
-
-/* keyboard focus rings the whole card */
-.mz-pkg-plan:focus-visible {
-  outline: none;
+  border-color: var(--mz-line-strong);
+  box-shadow: 0 18px 40px -22px rgba(61, 45, 32, 0.35);
 }
 
 .mz-pkg:has(.mz-pkg-plan:focus-visible) {
@@ -1587,9 +1331,189 @@ section[aria-label="Itinerary graph"] > .mz-panel:nth-child(2) .mz-btn-solid:hov
   outline-offset: 3px;
 }
 
-/* breathing room between the Where/From/To form and the package row */
-.mz-packages {
-  padding-top: 64px;
+.mz-pkg-media {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: var(--mz-paper-deep);
+}
+
+.mz-pkg-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.9s cubic-bezier(0.165, 0.84, 0.44, 1);
+}
+
+.mz-pkg:hover .mz-pkg-img {
+  transform: scale(1.04);
+}
+
+.mz-pkg-tag {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 6px 9px 5px;
+  border-radius: 2px;
+  background: rgba(251, 248, 243, 0.92);
+  color: var(--mz-ink);
+  font-size: 0.64rem;
+  line-height: 1;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.mz-pkg-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 18px 16px;
+}
+
+/* two lines reserved so every blurb and spec list starts on the same line */
+.mz-pkg-title {
+  min-height: 2em;
+  margin: 0;
+  font-family: Apris, "Times New Roman", serif;
+  font-weight: 400;
+  font-size: 1.4rem;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--mz-ink);
+}
+
+.mz-pkg-blurb {
+  margin: 10px 0 16px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--mz-ink-soft);
+}
+
+.mz-pkg-specs {
+  margin: auto 0 16px;
+  border-top: 1px solid var(--mz-line);
+}
+
+.mz-pkg-specs > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 0 7px;
+  border-bottom: 1px solid var(--mz-line);
+}
+
+.mz-pkg-specs dt {
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mz-ink-soft);
+}
+
+.mz-pkg-specs dd {
+  margin: 0;
+  font-size: 0.82rem;
+  text-align: right;
+  color: var(--mz-ink);
+}
+
+/* same pill as the landing nav: hairline, sand on hover */
+.mz-pkg-plan {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--mz-ink);
+  border-radius: 100rem;
+  background: transparent;
+  color: var(--mz-ink);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background-color 0.25s, border-color 0.25s;
+}
+
+.mz-pkg-plan::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  cursor: pointer;
+}
+
+.mz-pkg-plan svg {
+  width: 10px;
+  height: 10px;
+  fill: currentColor;
+  transition: transform 0.35s cubic-bezier(0.165, 0.84, 0.44, 1);
+}
+
+.mz-pkg:hover .mz-pkg-plan {
+  background: #eee4d6;
+  border-color: #eee4d6;
+}
+
+.mz-pkg:hover .mz-pkg-plan svg {
+  transform: translate(2px, -2px);
+}
+
+.mz-pkg-plan:focus-visible {
+  outline: none;
+}
+
+.mz-pkg-plan:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.mz-pkg-plan:disabled::after {
+  cursor: not-allowed;
+}
+
+@media (max-width: 1199px) {
+  .mz-pkg-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 899px) {
+  .mz-stack:has(> .mz-packages) > .mz-panel {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .mz-stack:has(> .mz-packages) > .mz-panel > .mz-field:first-child {
+    grid-column: 1 / -1;
+    border-bottom: 1px solid var(--mz-line);
+  }
+
+  .mz-stack:has(> .mz-packages) > .mz-panel .mz-grid-2 > .mz-field:first-child {
+    border-left: 0;
+  }
+
+  .mz-pkg-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 559px) {
+  .mz-pkg-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mz-pkg-title {
+    min-height: 0;
+    font-size: 1.7rem;
+  }
+
+  .mz-pkg-blurb {
+    font-size: 0.95rem;
+  }
 }
 
 /* Trip detail header (the page head with day tabs) sits higher */
@@ -2435,43 +2359,6 @@ section[aria-label="Itinerary graph"] > .mz-panel.mz-simulator.mz-report::after 
 }
 
 @media (max-width: 767px) {
-  /* Packages: one card per row, full width, text back to readable sizes */
-  .mz-packages {
-    padding: 32px 16px 48px;
-  }
-
-  .mz-pkg-grid {
-    flex-wrap: wrap;
-    gap: 18px;
-  }
-
-  .mz-pkg {
-    flex: 1 1 100%;
-  }
-
-  .mz-pkg-title {
-    font-size: 1.9rem;
-  }
-
-  .mz-pkg-blurb {
-    font-size: 0.95rem;
-  }
-
-  .mz-pkg-meta,
-  .mz-pkg-tag,
-  .mz-pkg-chip {
-    font-size: 0.7rem;
-  }
-
-  .mz-pkg-foot-value {
-    font-size: 0.95rem;
-  }
-
-  .mz-pkg-plan {
-    min-height: 44px;
-    font-size: 0.78rem;
-  }
-
   /* Section headings (Packages, Flights, Hotels) fit a phone */
   .mz-section-head .mz-h1 {
     font-size: clamp(2.2rem, 10vw, 3rem);
